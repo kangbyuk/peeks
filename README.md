@@ -57,13 +57,6 @@ npm start
 
 로컬에서 설치 파일을 만들려면 `npm run build` (산출물은 `dist/`).
 
-### 유지보수: GA4 Measurement Protocol
-
-앱은 **GA4 Measurement Protocol**로 `app_start`, `add_team`, `change_mode` 이벤트를 보낼 수 있습니다. 측정 ID는 `G-M16NPNDWPG`이며, **API 시크릿**은 Git에 넣지 마세요.
-
-- **개발:** 터미널에서 `export GA4_API_SECRET='(GA4 관리 화면에서 발급)'` 후 `npm start`
-- **DMG에 포함해 배포:** `ga4-secret.local.json.example`을 복사해 `ga4-secret.local.json`으로 두고 `api_secret` 값을 채운 뒤, `package.json`의 `build.files`에 `"ga4-secret.local.json"`을 추가하고 `npm run build` (이 파일은 `.gitignore`됨)
-
 ---
 
 ## ⚠️ 면책
