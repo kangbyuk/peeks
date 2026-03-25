@@ -527,11 +527,11 @@ h1 {
   color: #e8f0ff;
 }
 
-/* ── 내 구단 뷰 ── */
+/* ── 내 구단 뷰 (팀 목록만 스크롤, ALL GAMES는 하단 고정) ── */
 .my-team-view {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -541,10 +541,22 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex-shrink: 0;
   position: relative;
   z-index: 1;
   -webkit-app-region: no-drag;
+}
+
+/* 팀 카드가 있을 때만 목록 영역이 남는 높이를 먹고 스크롤 */
+.my-team-view:has(.team-card) .my-teams-list {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.my-team-view:not(:has(.team-card)) .my-teams-list {
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .my-teams-list.is-reordering {
@@ -558,6 +570,7 @@ h1 {
   gap: 5px;
   flex-shrink: 0;
   padding-bottom: 2px;
+  margin-top: auto;
 }
 
 .all-games-header {
@@ -780,7 +793,8 @@ h1 {
   cursor: grab;
   user-select: none;
   -webkit-user-drag: none;
-  transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
+  transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease,
+    padding 0.22s ease, gap 0.22s ease, flex-direction 0.22s ease;
 }
 
 .team-card.dragging {
@@ -824,7 +838,7 @@ h1 {
   text-overflow: ellipsis;
 }
 
-/* 약어 — 기본 숨김, compact/micro에서 노출 */
+/* 약어 — 기본 숨김, Compact 밀도에서만 노출 */
 .card-abbr-name {
   display: none;
   font-size: 11px;
@@ -936,7 +950,14 @@ h1 {
   flex: 1;
   text-align: center;
   /* 창 너비에 비례한 유동 스코어 폰트 */
-  font-size: clamp(12px, calc(var(--widget-w, 240px) * 0.082), 22px);
+  font-size: clamp(
+    11px,
+    min(
+      calc(var(--widget-w, 240px) * 0.082),
+      calc(var(--widget-h, 400px) * 0.052)
+    ),
+    22px
+  );
   font-weight: 800;
   color: #ffffff;
   letter-spacing: 1px;
@@ -1076,7 +1097,14 @@ h1 {
 }
 
 .card-soccer-score {
-  font-size: clamp(14px, calc(var(--widget-w, 240px) * 0.09), 24px);
+  font-size: clamp(
+    12px,
+    min(
+      calc(var(--widget-w, 240px) * 0.09),
+      calc(var(--widget-h, 400px) * 0.056)
+    ),
+    24px
+  );
   font-weight: 800;
   color: #ffffff;
   letter-spacing: 2px;
@@ -1100,27 +1128,46 @@ h1 {
   color: #f0a040;
 }
 
-/* compact 모드: 로고만 */
-.widget.compact .card-soccer-abbr { display: none; }
-.widget.compact .card-soccer-logo { width: 18px; height: 18px; }
-.widget.compact .card-soccer-score { font-size: 14px; }
-.widget.compact .card-soccer-body  { min-height: 30px; }
+/* ⚽ Standard: 약간 타이트 */
+.widget.density-standard .card-soccer-body {
+  min-height: 34px;
+  gap: 3px;
+}
+.widget.density-standard .card-soccer-logo {
+  width: 20px;
+  height: 20px;
+}
 
-/* micro 모드: 1줄 수평 배치 */
-.widget.micro .card-soccer-body {
+/* ⚽ Compact: 한 줄 슬림 (로고·스코어 중심) */
+.widget.density-compact .card-soccer-body {
   flex-direction: row;
   min-height: 0;
+  align-items: center;
 }
-.widget.micro .card-soccer-team {
+.widget.density-compact .card-soccer-team {
   flex-direction: row;
   flex: 0 0 auto;
-  gap: 2px;
+  gap: 3px;
+  min-width: 0;
 }
-.widget.micro .card-soccer-logo  { width: 14px; height: 14px; }
-.widget.micro .card-soccer-abbr  { display: none; }
-.widget.micro .card-soccer-center { min-width: 36px; }
-.widget.micro .card-soccer-score  { font-size: 11px; letter-spacing: 1px; }
-.widget.micro .card-soccer-status { font-size: 7px; }
+.widget.density-compact .card-soccer-logo {
+  width: 15px;
+  height: 15px;
+}
+.widget.density-compact .card-soccer-abbr {
+  display: none;
+}
+.widget.density-compact .card-soccer-center {
+  flex: 1;
+  min-width: 0;
+}
+.widget.density-compact .card-soccer-score {
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+.widget.density-compact .card-soccer-status {
+  font-size: 7px;
+}
 
 /* ══════════════════════════════════
    EPL 순위표 (단일 리그)
@@ -1432,110 +1479,149 @@ h2 {
   color: #ffcf86;
 }
 
-/* ════════════════════════════════
-   반응형 카드 — Compact (< 200px)
-   풀네임 → 약어, 전적·푸터 숨김
-   ════════════════════════════════ */
-.widget.compact .card-team-name  { display: none; }
-.widget.compact .card-abbr-name  { display: inline; }
-.widget.compact .card-record     { display: none; }
-.widget.compact .card-footer     { display: none !important; }
-.widget.compact .card-period     { display: none; }
-.widget.compact .card-abbr       { display: none; }   /* 스코어 행 내 팀 약어 */
-.widget.compact .card-no-game    { font-size: 9px; }
-.widget.compact .card-pre-detail { font-size: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.widget.compact .card-pitcher    { font-size: 8.5px; margin-top: 3px; }
+/* ═══════════════════════════════════════════════════════════
+   반응형 카드 밀도 (JS: density-full | density-standard | density-compact)
+   Full: 순위·전적·스코어·Next / Standard: 순위·전적·스코어 (Next 숨김)
+   Compact: 로고 + 스코어(또는 상태) 한 줄 슬림
+   ═══════════════════════════════════════════════════════════ */
 
-.widget.compact .team-card {
-  gap: 4px;
-  padding: 6px 8px;
+/* ── Standard: 다음 경기 숨김, 약간 타이트 ── */
+.widget.density-standard .card-footer {
+  display: none !important;
 }
-.widget.compact .card-body {
-  min-height: 28px;
+.widget.density-standard .team-card {
+  gap: 5px;
+  padding: 8px 10px;
+}
+.widget.density-standard .card-body {
+  min-height: 32px;
   gap: 2px;
 }
-.widget.compact .card-team-logo {
-  width: 16px;
-  height: 16px;
-}
-
-/* ════════════════════════════════
-   반응형 카드 — Micro (< 155px)
-   가로 한 줄(Row) 레이아웃
-   로고 + 약어 | 게임 상태 + 스코어
-   ════════════════════════════════ */
-.widget.micro .team-card {
-  flex-direction: row !important;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 7px;
-  min-height: 0;
-}
-
-/* 헤더: 세로로 로고+약어만 표시 */
-.widget.micro .card-header {
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  width: auto;
-}
-.widget.micro .card-header-left {
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-.widget.micro .card-meta         { display: none; }
-.widget.micro .card-team-name    { display: none; }
-.widget.micro .card-abbr-name    {
-  display: inline;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-}
-.widget.micro .card-team-logo {
+.widget.density-standard .card-team-logo {
   width: 18px;
   height: 18px;
 }
-.widget.micro .card-sport-emoji  { font-size: 12px; }
+.widget.density-standard .card-period {
+  font-size: 9px;
+}
+.widget.density-standard .card-pitcher {
+  font-size: 8.5px;
+  margin-top: 3px;
+}
+.widget.density-standard .my-teams-list {
+  gap: 6px;
+}
 
-/* 바디: 가로로 펼쳐서 한 줄 요약 */
-.widget.micro .card-body {
+/* ── Compact: 가로 한 줄 — 로고 | 스코어·상태 (순위·팀명·Next 숨김) ── */
+.widget.density-compact .team-card {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  min-height: 0;
+}
+.widget.density-compact .card-header {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  flex-shrink: 0;
+  width: auto;
+  margin: 0;
+}
+.widget.density-compact .card-header-left {
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.widget.density-compact .card-meta {
+  display: none;
+}
+.widget.density-compact .card-team-name {
+  display: none;
+}
+.widget.density-compact .card-abbr-name {
+  display: none;
+}
+.widget.density-compact .card-team-logo {
+  width: 17px;
+  height: 17px;
+}
+.widget.density-compact .card-sport-emoji {
+  font-size: 13px;
+}
+.widget.density-compact .card-body {
   flex: 1;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
 }
-.widget.micro .card-score-header {
-  /* 점 + period를 한 줄에 */
+.widget.density-compact .card-score-header {
   flex-direction: row;
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
 }
-.widget.micro .card-period       { font-size: 8px; }
-.widget.micro .card-score-row    {
+.widget.density-compact .card-period {
+  font-size: 7.5px;
+}
+.widget.density-compact .card-score-row {
   flex: 1;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
-.widget.micro .card-abbr         { display: none; }
-.widget.micro .card-final-label  { font-size: 8px; flex-shrink: 0; }
-.widget.micro .card-result       { font-size: 8px; }
-.widget.micro .card-no-game      {
+.widget.density-compact .card-abbr {
+  display: none;
+}
+.widget.density-compact .card-final-label {
+  font-size: 7.5px;
+  flex-shrink: 0;
+}
+.widget.density-compact .card-result {
+  font-size: 8px;
+}
+.widget.density-compact .card-no-game {
   font-size: 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.widget.micro .card-pre-detail   { display: none; }
-.widget.micro .card-pitcher      { display: none; }
-.widget.micro .card-footer       { display: none !important; }
+.widget.density-compact .card-pre-detail {
+  display: none;
+}
+.widget.density-compact .card-pitcher {
+  display: none;
+}
+.widget.density-compact .card-footer {
+  display: none !important;
+}
+.widget.density-compact .my-teams-list {
+  gap: 5px;
+}
 
-.widget.micro .my-teams-list     { gap: 4px; }
+/* 코더 모드 카드 밀도 */
+.widget.density-standard .coder-block {
+  font-size: 9px;
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+.widget.density-compact .team-card.coder-card {
+  flex-direction: column !important;
+  align-items: stretch;
+  padding: 5px 7px;
+}
+.widget.density-compact .coder-block {
+  font-size: 7.5px;
+  line-height: 1.35;
+  padding: 4px 6px;
+  max-height: 3.9em;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* ── Empty State ── */
 .empty-state {

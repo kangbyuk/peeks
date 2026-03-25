@@ -1664,19 +1664,41 @@ document.addEventListener('keydown', (e) => {
 
 refreshBtn.addEventListener('click', () => updateScores());
 
-// ── 반응형 너비 감지 ──
+// ── 반응형 밀도 (너비·높이): Compact | Standard | Full ──
 const widgetEl = document.querySelector('.widget');
+const DENSITY_FULL_MIN_W = 264;
+const DENSITY_FULL_MIN_H = 400;
+const DENSITY_COMPACT_MAX_W = 186;
+const DENSITY_COMPACT_MAX_H = 260;
+
+function applyWidgetDensity(w, h) {
+  if (!widgetEl) return;
+  widgetEl.style.setProperty('--widget-w', `${Math.round(w)}px`);
+  widgetEl.style.setProperty('--widget-h', `${Math.round(h)}px`);
+  const compact = w <= DENSITY_COMPACT_MAX_W || h <= DENSITY_COMPACT_MAX_H;
+  const full = !compact && w >= DENSITY_FULL_MIN_W && h >= DENSITY_FULL_MIN_H;
+  const standard = !compact && !full;
+  widgetEl.classList.toggle('density-compact', compact);
+  widgetEl.classList.toggle('density-standard', standard);
+  widgetEl.classList.toggle('density-full', full);
+  widgetEl.classList.toggle('wide', w >= 300);
+}
+
 const resizeObserver = new ResizeObserver((entries) => {
   for (const entry of entries) {
-    const w = entry.contentRect.width;
-    widgetEl.classList.toggle('wide',    w >= 300);
-    widgetEl.classList.toggle('compact', w <  200);
-    widgetEl.classList.toggle('micro',   w <  155);
-    // 유동 타이포용 CSS 변수
-    widgetEl.style.setProperty('--widget-w', `${w}px`);
+    const { width: w, height: h } = entry.contentRect;
+    applyWidgetDensity(w, h);
   }
 });
-resizeObserver.observe(widgetEl);
+if (widgetEl) {
+  const r0 = widgetEl.getBoundingClientRect();
+  applyWidgetDensity(r0.width, r0.height);
+  resizeObserver.observe(widgetEl);
+  requestAnimationFrame(() => {
+    const r1 = widgetEl.getBoundingClientRect();
+    applyWidgetDensity(r1.width, r1.height);
+  });
+}
 
 // ── KST 자정 자동 갱신 ──
 function scheduleMidnightRefresh() {
