@@ -54,8 +54,8 @@ NBA · MLB · 축구(EPL, 라리가, 분데스리가, 세리에 A, UCL)까지, *
 ### 개발 실행
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
+git clone https://github.com/kangbyuk/peeks.git
+cd peeks
 npm install
 npm start
 ```
@@ -90,7 +90,7 @@ npm run build
      GitHub 웹에서 **New repository**로 빈 레포 생성 (README 추가하지 않는 편이 충돌이 적습니다).  
      터미널에서:
      ```bash
-     git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+     git remote add origin https://github.com/kangbyuk/peeks.git
      git push -u origin main
      ```
    - **방법 B (Cursor UI)**  
