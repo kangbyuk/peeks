@@ -72,6 +72,33 @@ npm run build
 산출물은 보통 `dist/PEEKS-1.0.0-universal.dmg` 및 `dist/mac-universal/PEEKS.app` 입니다.  
 코드 서명은 로컬 설정에 따라 생략될 수 있으며, 다른 Mac에서는 보안 경고 후 **열기**가 필요할 수 있습니다.
 
+### GitHub에 올리기 (Cursor)
+
+1. **Git 사용자 정보** (커밋에 표시됨 — 한 번만 설정)
+   ```bash
+   git config --global user.name "이름"
+   git config --global user.email "깃허브이메일@example.com"
+   ```
+   이미 첫 커밋이 있다면 위 설정 후 `git commit --amend --reset-author --no-edit` 로 작성자만 고칠 수 있습니다.
+
+2. **Cursor 확장**  
+   왼쪽 **Extensions**에서 `GitHub Pull Requests` 검색 → **GitHub** (Microsoft) 설치.  
+   또는 저장소를 열면 **추천 확장** 알림이 뜰 수 있습니다 (`.vscode/extensions.json`).
+
+3. **원격 저장소에 푸시**
+   - **방법 A**  
+     GitHub 웹에서 **New repository**로 빈 레포 생성 (README 추가하지 않는 편이 충돌이 적습니다).  
+     터미널에서:
+     ```bash
+     git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+     git push -u origin main
+     ```
+   - **방법 B (Cursor UI)**  
+     왼쪽 **Source Control** → **Publish Branch** / **Publish to GitHub**가 보이면 클릭 후 브라우저에서 GitHub 로그인·레포 이름 선택.
+
+4. **(선택) GitHub CLI** `gh`  
+   [GitHub CLI 설치](https://cli.github.com/) 후 `gh auth login` → `gh repo create` 로 레포 생성·푸시도 가능합니다.
+
 ---
 
 ## 📁 구조 한눈에
