@@ -34,6 +34,68 @@ const PEEKS_MONO_KEY    = 'peeks_mono';
 const PEEKS_CODER_KEY = 'peeks_coder';
 const PEEKS_CODER_FORMAT_KEY = 'peeks_coder_format';
 
+// ── GA4 Measurement Protocol (메인 프로세스 경유) ──
+const GA4_CLIENT_ID_KEY = 'peeks_ga4_client_id';
+
+function getOrCreateGaClientId() {
+  try {
+    let id = localStorage.getItem(GA4_CLIENT_ID_KEY);
+    if (!id || id.length < 8) {
+      id =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `p_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
+      localStorage.setItem(GA4_CLIENT_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return `p_${Date.now()}`;
+  }
+}
+
+function gaTrack(eventName, params = {}) {
+  try {
+    const clientId = getOrCreateGaClientId();
+    if (window.analyticsAPI?.trackEvent) {
+      void window.analyticsAPI.trackEvent(clientId, eventName, params);
+    }
+  } catch (_) { /* noop */ }
+}
+
+function favoriteEntryKey(ft) {
+  return `${ft.sport}:${ft.teamId}:${ft.leagueId || ''}`;
+}
+
+function teamNameFromCheckboxInput(input) {
+  if (!input) return '';
+  const label = input.closest('label');
+  if (!label) return String(input.value || '');
+  const clone = label.cloneNode(true);
+  clone.querySelectorAll('input').forEach((el) => el.remove());
+  clone.querySelectorAll('.team-checkbox-conf').forEach((el) => el.remove());
+  const text = clone.textContent.replace(/\s+/g, ' ').trim();
+  return text || String(input.value);
+}
+
+function findCheckboxForFavoriteEntry(entry) {
+  const { teamId, sport, leagueId } = entry;
+  const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(teamId) : String(teamId).replace(/"/g, '\\"');
+  if (sport === 'nba') {
+    return nbaCheckboxListEl?.querySelector(`input[type="checkbox"][value="${esc}"]`);
+  }
+  if (sport === 'mlb') {
+    return mlbCheckboxListEl?.querySelector(`input[type="checkbox"][value="${esc}"]`);
+  }
+  if (sport === 'soccer') {
+    const lid = leagueId || 'eng.1';
+    const le = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(lid) : lid;
+    return soccerCheckboxListEl?.querySelector(
+      `input[type="checkbox"][value="${esc}"][data-league="${le}"]`
+    );
+  }
+  return null;
+}
+
 // ── DOM 참조 ──
 const statusEl = document.getElementById('status');
 const easternBody = document.getElementById('east-body');
@@ -715,6 +777,9 @@ function addToFavorites(teamId, sport, leagueId = null) {
   const entry = leagueId ? { teamId, sport, leagueId } : { teamId, sport };
   favoriteTeams = [...favoriteTeams, entry];
   localStorage.setItem(FAVORITE_TEAMS_KEY, JSON.stringify(favoriteTeams));
+  const tmeta = findTeam(teamId, sport, leagueId);
+  const tname = tmeta?.team || tmeta?.name || String(teamId);
+  gaTrack('add_team', { team_name: tname, sport, league_id: leagueId || '' });
   // soccer 팀이면 리그 데이터 미리 로드
   if (sport === 'soccer' && leagueId && !soccerTeamsByLeague[leagueId]?.length) {
     loadSoccerLeagueData(leagueId);
@@ -951,6 +1016,8 @@ function attachSoccerTableEvents() {
       favoriteTeams = favoriteTeams.filter((_, i) => i !== idx);
     } else {
       favoriteTeams = [...favoriteTeams, { teamId, sport: 'soccer', leagueId: lid }];
+      const nm = row.querySelector('.col-team')?.textContent?.replace(/★/g, '').trim() || String(teamId);
+      gaTrack('add_team', { team_name: nm, sport: 'soccer', league_id: lid });
     }
     localStorage.setItem(FAVORITE_TEAMS_KEY, JSON.stringify(favoriteTeams));
     renderTeamCards();
@@ -1440,8 +1507,22 @@ saveFavoriteBtn.addEventListener('click', () => {
     return;
   }
 
+  const prevKeys = new Set(favoriteTeams.map(favoriteEntryKey));
+
   favoriteTeams = checked;
   localStorage.setItem(FAVORITE_TEAMS_KEY, JSON.stringify(favoriteTeams));
+
+  checked.forEach((entry) => {
+    if (!prevKeys.has(favoriteEntryKey(entry))) {
+      const input = findCheckboxForFavoriteEntry(entry);
+      const teamName = input ? teamNameFromCheckboxInput(input) : String(entry.teamId);
+      gaTrack('add_team', {
+        team_name: teamName,
+        sport: entry.sport,
+        league_id: entry.leagueId || ''
+      });
+    }
+  });
 
   // soccer 팀이 포함된 리그 데이터 로드
   const soccerLeagues = [...new Set(
@@ -1610,17 +1691,25 @@ opacitySlider.addEventListener('input', () => {
   localStorage.setItem(PEEKS_OPACITY_KEY, baseOpacity);
   applyStealthSettings();
 });
+opacitySlider.addEventListener('change', () => {
+  gaTrack('change_mode', {
+    mode: 'opacity',
+    value_percent: Math.round(Number(opacitySlider.value) || 0)
+  });
+});
 
 ghostModeCb.addEventListener('change', () => {
   ghostMode = ghostModeCb.checked;
   localStorage.setItem(PEEKS_GHOST_KEY, ghostMode);
   applyStealthSettings();
+  gaTrack('change_mode', { mode: 'ghost', enabled: ghostMode ? 1 : 0 });
 });
 
 monoModeCb.addEventListener('change', () => {
   monoMode = monoModeCb.checked;
   localStorage.setItem(PEEKS_MONO_KEY, monoMode);
   applyStealthSettings();
+  gaTrack('change_mode', { mode: 'mono', enabled: monoMode ? 1 : 0 });
 });
 
 if (coderModeCb) {
@@ -1630,6 +1719,7 @@ if (coderModeCb) {
     applyCoderMode();
     renderTeamCards();
     if (allGamesOpen) renderAllGames();
+    gaTrack('change_mode', { mode: 'coder', enabled: coderMode ? 1 : 0 });
   });
 }
 
@@ -1637,6 +1727,7 @@ function syncCoderFormatFromRadios() {
   if (!coderFormatLogEl || !coderFormatCodeEl) return;
   coderFormat = coderFormatCodeEl.checked ? 'code' : 'log';
   localStorage.setItem(PEEKS_CODER_FORMAT_KEY, coderFormat);
+  gaTrack('change_mode', { mode: 'coder_format', format: coderFormat });
   if (coderMode) {
     renderTeamCards();
     if (allGamesOpen) renderAllGames();
@@ -1761,3 +1852,5 @@ loadTeamGameStatus();
 loadAllGames('nba');
 syncSoccerGamesSubtabsVisibility();
 scheduleMidnightRefresh();
+
+gaTrack('app_start', { app_version: '1.0.1' });

@@ -33,3 +33,6 @@ yarn-error.log*
 # 로컬 스크래치 / 메모
 test_min.js
 current_status.txt
+
+# GA4 Measurement Protocol API secret (로컬만)
+ga4-secret.local.json

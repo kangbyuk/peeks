@@ -22,6 +22,8 @@
     },
     "files": [
       "main.js",
+      "ga4-mp.js",
+      "ga4-secret.local.json.example",
       "preload.js",
       "renderer.js",
       "index.html",

@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const { sendGA4Event } = require('./ga4-mp');
 
 // ── 창 크기/위치 기억 (userData JSON, 디바운스 저장) ──
 const WINDOW_STATE_FILE = 'window-state.json';
@@ -707,6 +708,18 @@ app.whenReady().then(() => {
 
   ipcMain.handle('standings:fetchEpl', async () => {
     return fetchSoccerStandings('eng.1');
+  });
+
+  ipcMain.handle('ga4:track', async (_evt, payload) => {
+    try {
+      const clientId = payload?.clientId;
+      const eventName = payload?.eventName;
+      const params = payload?.params && typeof payload.params === 'object' ? payload.params : {};
+      await sendGA4Event(clientId, eventName, params);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
   });
 
   app.on('activate', () => {

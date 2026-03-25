@@ -22,3 +22,8 @@ contextBridge.exposeInMainWorld('standingsAPI', {
     return () => ipcRenderer.removeListener('peeks:peek-state', wrap);
   }
 });
+
+contextBridge.exposeInMainWorld('analyticsAPI', {
+  trackEvent: (clientId, eventName, params) =>
+    ipcRenderer.invoke('ga4:track', { clientId, eventName, params })
+});
