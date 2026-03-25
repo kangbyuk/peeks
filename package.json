@@ -45,6 +45,7 @@
     ],
     "mac": {
       "category": "public.app-category.sports",
+      "icon": "assets/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -62,6 +63,7 @@
       }
     },
     "win": {
+      "icon": "assets/icon.png",
       "target": [
         {
           "target": "nsis",
