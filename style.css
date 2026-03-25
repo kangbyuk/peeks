@@ -309,7 +309,9 @@ h1 {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
+  min-height: 26px;
+  height: auto;
+  padding: 2px 0;
 }
 
 .stealth-label {
@@ -317,16 +319,17 @@ h1 {
   font-weight: 600;
   color: #c8d5e8;
   flex-shrink: 0;
-  min-width: 52px;
+  min-width: 64px;
 }
 
 .stealth-desc {
   font-size: 9px;
   color: #6b7f96;
   flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  line-height: 1.25;
+  white-space: normal;
+  word-break: keep-all;
 }
 
 .stealth-val {
