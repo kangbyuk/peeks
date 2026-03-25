@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PEEKS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="widget">
+      <header class="top-bar">
+        <div class="traffic-light-veil" aria-hidden="true"></div>
+        <h1 class="brand-title">PEEKS</h1>
+        <div class="top-right-tools">
+          <span id="updated-at" class="updated-time">--:--</span>
+          <button id="refresh-btn" class="icon-btn refresh-btn" type="button" aria-label="새로고침">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          </button>
+          <button id="home-btn" class="icon-btn home-btn" type="button" aria-label="홈으로">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </button>
+          <button id="toggle-rank-btn" class="icon-btn" type="button" aria-label="순위 보기">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+          <button id="settings-btn" class="icon-btn" type="button" aria-label="구단 설정">
+            <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <section id="favorite-setup" class="favorite-setup hidden">
+
+        <!-- 설정 탭 -->
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-settings-tab="general">🕵️ 몰래보기</button>
+          <button class="settings-tab" data-settings-tab="teams">🏀 팀 관리</button>
+        </div>
+
+        <!-- ① 일반 탭 패널 -->
+        <div id="settings-panel-general" class="settings-panel">
+          <div class="stealth-row">
+            <span class="stealth-label">투명도</span>
+            <input type="range" id="opacity-slider" class="opacity-slider" min="10" max="100" step="5" value="100" />
+            <span id="opacity-val" class="stealth-val">100%</span>
+          </div>
+          <div class="stealth-row">
+            <span class="stealth-label">고스트 모드</span>
+            <span class="stealth-desc">마우스 올릴 때만 선명하게</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="ghost-mode-cb" />
+              <span class="toggle-thumb"></span>
+            </label>
+          </div>
+          <div class="stealth-row">
+            <span class="stealth-label">모노크롬</span>
+            <span class="stealth-desc">흑백 위장 (The Coder Mode 켜면 비활성)</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="mono-mode-cb" />
+              <span class="toggle-thumb"></span>
+            </label>
+          </div>
+          <div class="stealth-row">
+            <span class="stealth-label">The Coder Mode</span>
+            <span class="stealth-desc">터미널/JSON 위장 · 모노·화려 UI보다 우선</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="coder-mode-cb" />
+              <span class="toggle-thumb"></span>
+            </label>
+          </div>
+          <div id="coder-format-row" class="stealth-row coder-format-row hidden">
+            <span class="stealth-label">출력 형식</span>
+            <div class="coder-format-radios">
+              <label class="coder-radio-label"
+                ><input type="radio" name="coder-format" id="coder-format-log" value="log" checked /> 로그</label
+              >
+              <label class="coder-radio-label"
+                ><input type="radio" name="coder-format" id="coder-format-code" value="code" /> 코드</label
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- ② 팀 관리 탭 패널 -->
+        <div id="settings-panel-teams" class="settings-panel hidden">
+          <div class="sport-tabs">
+            <button class="sport-tab active" data-sport="nba">🏀 NBA</button>
+            <button class="sport-tab" data-sport="mlb">⚾ MLB</button>
+            <button class="sport-tab" data-sport="soccer">⚽ Soccer</button>
+          </div>
+          <div class="team-search-wrap">
+            <span class="team-search-icon">🔍</span>
+            <input id="team-search-input" class="team-search-input" type="text" placeholder="팀 이름 검색..." autocomplete="off" spellcheck="false" />
+            <button id="team-search-clear" class="team-search-clear hidden" type="button" aria-label="지우기">✕</button>
+          </div>
+          <div id="nba-checkbox-list" class="team-checkbox-list sport-list"></div>
+          <div id="mlb-checkbox-list" class="team-checkbox-list sport-list hidden"></div>
+          <!-- Soccer: 리그별 서브탭 + 팀 목록 -->
+          <div id="soccer-setup-section" class="sport-list hidden">
+            <div class="soccer-league-subtabs" id="soccer-setup-tabs">
+              <button class="soccer-setup-tab active" data-league="eng.1">EPL</button>
+              <button class="soccer-setup-tab" data-league="esp.1">LaLiga</button>
+              <button class="soccer-setup-tab" data-league="ger.1">Bun.</button>
+              <button class="soccer-setup-tab" data-league="ita.1">Serie A</button>
+              <button class="soccer-setup-tab" data-league="uefa.champions">UCL</button>
+            </div>
+            <div id="soccer-checkbox-list" class="team-checkbox-list"></div>
+          </div>
+          <button id="save-favorite-btn" type="button">저장</button>
+        </div>
+      </section>
+
+      <section id="my-team-view" class="my-team-view hidden">
+        <!-- Empty state: 관심 팀 없을 때 -->
+        <div id="empty-state" class="empty-state hidden">
+          <div class="empty-state-emoji">🏟️</div>
+          <p class="empty-state-text">아직 응원하는 팀이 없네요!</p>
+          <button id="empty-state-btn" class="empty-state-btn" type="button">+ 내 팀 등록하고 경기 보기</button>
+        </div>
+
+        <!-- My Teams -->
+        <div id="my-teams-list" class="my-teams-list"></div>
+
+        <!-- All Games -->
+        <div id="all-games-section" class="all-games-section">
+          <div class="all-games-header">
+            <button id="all-games-toggle" class="all-games-toggle">
+              <span class="all-games-title">ALL GAMES</span>
+              <svg class="toggle-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="games-filter-tabs hidden" id="games-filter-tabs">
+              <button class="games-filter-btn active" data-games-sport="nba">🏀</button>
+              <button class="games-filter-btn" data-games-sport="mlb">⚾</button>
+              <button class="games-filter-btn" data-games-sport="soccer">⚽</button>
+            </div>
+          </div>
+          <!-- Soccer 리그 서브탭 (⚽ 선택 시 표시) -->
+          <div id="soccer-games-subtabs" class="soccer-games-subtabs hidden">
+            <button class="soccer-games-tab active" data-league="eng.1">EPL</button>
+            <button class="soccer-games-tab" data-league="esp.1">LaLiga</button>
+            <button class="soccer-games-tab" data-league="ger.1">Bun.</button>
+            <button class="soccer-games-tab" data-league="ita.1">Serie A</button>
+            <button class="soccer-games-tab" data-league="uefa.champions">UCL</button>
+          </div>
+          <div id="all-games-list" class="all-games-list hidden"></div>
+        </div>
+      </section>
+
+      <section id="tables-view" class="tables-view hidden">
+        <div class="standings-sport-tabs">
+          <button class="standings-tab active" data-standings="nba">🏀 NBA</button>
+          <button class="standings-tab" data-standings="mlb">⚾ MLB</button>
+          <button class="standings-tab" data-standings="soccer">⚽</button>
+        </div>
+        <!-- 축구 리그 서브탭 (⚽ 선택 시 표시) -->
+        <div id="soccer-standings-subtabs" class="soccer-standings-subtabs hidden">
+          <button class="soccer-std-tab active" data-league="eng.1">EPL</button>
+          <button class="soccer-std-tab" data-league="esp.1">LaLiga</button>
+          <button class="soccer-std-tab" data-league="ger.1">Bun.</button>
+          <button class="soccer-std-tab" data-league="ita.1">Serie A</button>
+          <button class="soccer-std-tab" data-league="uefa.champions">UCL</button>
+        </div>
+
+        <!-- NBA 순위 -->
+        <div id="nba-tables" class="tables">
+          <article class="panel">
+            <h2>Eastern</h2>
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th class="col-rank">#</th>
+                  <th class="col-team">Team</th>
+                  <th class="col-w">W</th>
+                  <th class="col-l">L</th>
+                  <th class="col-pct">PCT</th>
+                </tr>
+              </thead>
+              <tbody id="east-body"></tbody>
+            </table>
+          </article>
+          <article class="panel">
+            <h2>Western</h2>
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th class="col-rank">#</th>
+                  <th class="col-team">Team</th>
+                  <th class="col-w">W</th>
+                  <th class="col-l">L</th>
+                  <th class="col-pct">PCT</th>
+                </tr>
+              </thead>
+              <tbody id="west-body"></tbody>
+            </table>
+          </article>
+        </div>
+
+        <!-- MLB 순위 -->
+        <div id="mlb-tables" class="tables hidden">
+          <article class="panel">
+            <h2>American</h2>
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th class="col-rank">#</th>
+                  <th class="col-team">Team</th>
+                  <th class="col-w">W</th>
+                  <th class="col-l">L</th>
+                  <th class="col-pct">PCT</th>
+                  <th class="col-gb">GB</th>
+                </tr>
+              </thead>
+              <tbody id="al-body"></tbody>
+            </table>
+          </article>
+          <article class="panel">
+            <h2>National</h2>
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th class="col-rank">#</th>
+                  <th class="col-team">Team</th>
+                  <th class="col-w">W</th>
+                  <th class="col-l">L</th>
+                  <th class="col-pct">PCT</th>
+                  <th class="col-gb">GB</th>
+                </tr>
+              </thead>
+              <tbody id="nl-body"></tbody>
+            </table>
+          </article>
+        </div>
+
+        <!-- Soccer 순위 (리그 공용) -->
+        <div id="soccer-tables" class="tables hidden">
+          <div class="epl-standings-wrap">
+            <table class="rank-table epl-rank-table">
+              <thead>
+                <tr>
+                  <th class="col-rank">#</th>
+                  <th class="col-epl-logo"></th>
+                  <th class="col-team">Team</th>
+                  <th class="col-epl-num">W</th>
+                  <th class="col-epl-num">D</th>
+                  <th class="col-epl-num">L</th>
+                  <th class="col-epl-pts">Pts</th>
+                </tr>
+              </thead>
+              <tbody id="soccer-standings-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <footer id="status" aria-live="polite"></footer>
+    </main>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" aria-label="PEEKS app icon">
+  <defs>
+    <path id="peek-squircle" d="M 229 0 H 795 A 229 229 0 0 1 1024 229 V 795 A 229 229 0 0 1 795 1024 H 229 A 229 229 0 0 1 0 795 V 229 A 229 229 0 0 1 229 0 Z"/>
+    <linearGradient id="peek-bg" x1="18%" y1="12%" x2="82%" y2="92%">
+      <stop offset="0%" stop-color="#0A1424"/>
+      <stop offset="45%" stop-color="#0C1C34"/>
+      <stop offset="100%" stop-color="#081018"/>
+    </linearGradient>
+    <linearGradient id="peek-glass" x1="22%" y1="0%" x2="78%" y2="68%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.12"/>
+      <stop offset="38%" stop-color="#B8D4FF" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="peek-inner" cx="50%" cy="40%" r="72%">
+      <stop offset="58%" stop-color="#7EB8FF" stop-opacity="0"/>
+      <stop offset="90%" stop-color="#A8D0FF" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#E8F4FF" stop-opacity="0.14"/>
+    </radialGradient>
+    <linearGradient id="peek-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F4FAFF"/>
+      <stop offset="100%" stop-color="#C4DEFF"/>
+    </linearGradient>
+    <filter id="peek-mark-depth" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="b"/>
+      <feOffset dx="0" dy="3" in="b" result="o"/>
+      <feComponentTransfer in="o" result="a">
+        <feFuncA type="linear" slope="0.28"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="a"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="peek-mask">
+      <use href="#peek-squircle"/>
+    </clipPath>
+  </defs>
+
+  <use href="#peek-squircle" fill="url(#peek-bg)"/>
+
+  <g clip-path="url(#peek-mask)">
+    <rect width="1024" height="1024" fill="url(#peek-inner)"/>
+    <ellipse cx="400" cy="268" rx="500" ry="340" fill="url(#peek-glass)"/>
+  </g>
+
+  <path fill="none" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="1.5" d="M 229.75 0.75 H 794.25 A 228.25 228.25 0 0 1 1023.25 229.25 V 794.75 A 228.25 228.25 0 0 1 794.75 1023.25 H 229.25 A 228.25 228.25 0 0 1 0.75 794.75 V 229.25 A 228.25 228.25 0 0 1 229.25 0.75 Z"/>
+
+  <g filter="url(#peek-mark-depth)" fill="none" stroke="url(#peek-stroke)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 378 688 V 312 Q 378 286 402 286 H 518 C 624 286 674 356 674 438 C 674 508 636 558 572 576 L 666 474"/>
+    <path d="M 666 474 L 632 482 M 666 474 L 658 440" stroke-width="24"/>
+  </g>
+</svg>
