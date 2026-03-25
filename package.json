@@ -12,6 +12,7 @@
     "build:all": "electron-builder --mac --win"
   },
   "build": {
+    "publish": null,
     "appId": "com.peeks.app",
     "productName": "PEEKS",
     "copyright": "Copyright © 2026",
