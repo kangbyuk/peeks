@@ -497,8 +497,8 @@ function gameRowCoderHTML(game, sport) {
   const away = escapeHtmlText(game.away.abbr || '?');
   const home = escapeHtmlText(game.home.abbr || '?');
   const lid = sport === 'soccer' ? activeSoccerGamesLeague : '';
-  const bAway = `<button type="button" class="coder-fav-hit" data-team-id="${game.away.id}" data-sport="${sport}" data-league="${lid}">+${away}</button>`;
-  const bHome = `<button type="button" class="coder-fav-hit" data-team-id="${game.home.id}" data-sport="${sport}" data-league="${lid}">+${home}</button>`;
+  const bAway = `<span class="coder-game-abbr">${away}</span>`;
+  const bHome = `<span class="coder-game-abbr">${home}</span>`;
 
   if (coderFormat === 'log') {
     let inner = '';
@@ -803,7 +803,7 @@ function teamBtn(teamId, sport, logo, isFav) {
   const logoHtml = logo
     ? `<img class="gr-logo" src="${logo}" alt="" onerror="this.style.display='none'" />`
     : `<span class="gr-logo-fallback">${SPORT_EMOJI[sport] || ''}</span>`;
-  return `<button class="gr-team-btn ${isFav ? 'fav' : ''}" data-team-id="${teamId}" data-sport="${sport}" data-league="${activeSoccerGamesLeague || ''}">${logoHtml}</button>`;
+  return `<span class="gr-team-btn gr-team-display ${isFav ? 'fav' : ''}" aria-hidden="true">${logoHtml}</span>`;
 }
 
 function gameRowHTML(game, sport) {
@@ -875,22 +875,8 @@ function renderAllGames() {
   }
   if (coderMode) {
     allGamesListEl.innerHTML = games.map((g) => gameRowCoderHTML(g, activeGamesSport)).join('');
-    allGamesListEl.querySelectorAll('.coder-fav-hit').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const leagueId = btn.dataset.league || null;
-        addToFavorites(btn.dataset.teamId, btn.dataset.sport, leagueId);
-      });
-    });
   } else {
     allGamesListEl.innerHTML = games.map((g) => gameRowHTML(g, activeGamesSport)).join('');
-    allGamesListEl.querySelectorAll('.gr-team-btn').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const leagueId = btn.dataset.league || null;
-        addToFavorites(btn.dataset.teamId, btn.dataset.sport, leagueId);
-      });
-    });
   }
   syncSoccerGamesSubtabsVisibility();
 }

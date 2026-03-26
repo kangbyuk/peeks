@@ -527,36 +527,27 @@ h1 {
   color: #e8f0ff;
 }
 
-/* ── 내 구단 뷰 (팀 목록만 스크롤, ALL GAMES는 하단 고정) ── */
+/* ── 내 구단 뷰 (마이 팀 + ALL GAMES 한 덩어리로 통합 스크롤) ── */
 .my-team-view {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 
 .my-teams-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex-shrink: 0;
   position: relative;
   z-index: 1;
   -webkit-app-region: no-drag;
-}
-
-/* 팀 카드가 있을 때만 목록 영역이 남는 높이를 먹고 스크롤 */
-.my-team-view:has(.team-card) .my-teams-list {
-  flex: 1;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.my-team-view:not(:has(.team-card)) .my-teams-list {
-  flex: 0 0 auto;
-  overflow: visible;
 }
 
 .my-teams-list.is-reordering {
@@ -570,7 +561,6 @@ h1 {
   gap: 5px;
   flex-shrink: 0;
   padding-bottom: 2px;
-  margin-top: auto;
 }
 
 .all-games-header {
@@ -686,24 +676,24 @@ h1 {
   color: #4e6070;
 }
 
-/* 팀 버튼 (로고 래퍼, 클릭으로 즐겨찾기 추가) */
-.gr-team-btn {
+/* ALL GAMES 로고 (표시 전용 — 즐겨찾기는 설정에서만 추가) */
+.gr-team-btn.gr-team-display {
   background: none;
   border: none;
   padding: 2px;
   border-radius: 3px;
-  cursor: pointer;
+  cursor: default;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.12s, transform 0.1s;
   position: relative;
+  -webkit-app-region: no-drag;
 }
 
-.gr-team-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: scale(1.1);
+.gr-team-btn.gr-team-display:hover {
+  background: transparent;
+  transform: none;
 }
 
 /* 즐겨찾기 상태: 파란 링 */
@@ -1812,25 +1802,16 @@ body.coder-mode .coder-game-line:last-child {
   border-bottom: none;
 }
 
-body.coder-mode .coder-fav-hit {
-  background: none;
-  border: none;
+body.coder-mode .coder-game-abbr {
+  display: inline;
   padding: 0 3px;
   margin: 0 0 0 2px;
   font: inherit;
   font-size: 9px;
-  color: #569cd6;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  opacity: 0.88;
+  color: #858585;
+  cursor: default;
   vertical-align: baseline;
   -webkit-app-region: no-drag;
-}
-
-body.coder-mode .coder-fav-hit:hover {
-  color: #9cdcfe;
-  opacity: 1;
 }
 
 body.coder-mode .gr-empty {
