@@ -33,6 +33,18 @@ body {
   transition: opacity 0.28s ease;
 }
 
+/* 헤더 아래 본문만 세로 스크롤 (헤더는 고정) */
+.widget-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* 고스트 모드: 호버 시 완전 불투명 복원 */
 body.ghost-mode .widget:hover {
   opacity: 1 !important;
@@ -43,13 +55,17 @@ body.ghost-mode .widget:hover {
   filter: grayscale(1) brightness(0.95);
 }
 
-/* ── 헤더 ── */
+/* ── 헤더 (스크롤과 분리·콘텐츠는 뒤로 지나감) ── */
 .top-bar {
   position: relative;
+  z-index: 100;
   display: flex;
   align-items: center;           /* 세로 중앙 정렬 */
   justify-content: space-between;
   gap: 6px;
+  flex-shrink: 0;
+  /* 위젯 본체와 동일 톤의 불투명 배경 (스크롤 텍스트 비침 방지) */
+  background-color: rgb(30, 34, 40);
   /* top/bottom: 신호등(y:16, h:12) 중심이 top-bar 수직 중앙에 오도록
      전체 높이 ≈ 44px → padding top 14px / bottom 10px
      left 82px: 신호등 우측 끝(~66px) + PEEKS 로고 여유 16px */
@@ -57,6 +73,7 @@ body.ghost-mode .widget:hover {
   margin: 0 -8px;                /* 드래그 영역을 창 좌우 끝까지 확장 */
   /* 상단바 구분을 위한 미세한 하단 경계선 */
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px 12px 0 0;
   -webkit-app-region: drag;
 }
 
@@ -199,12 +216,16 @@ h1 {
 
 .settings-tab {
   flex: 1;
-  height: 32px;
+  min-width: 0;
+  height: auto;
+  min-height: 32px;
+  padding: 6px 4px;
   border: none;
   background: transparent;
   color: #6b7f96;
-  font-size: 10px;
+  font-size: 8.5px;
   font-weight: 600;
+  line-height: 1.25;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
   -webkit-app-region: no-drag;
@@ -238,6 +259,102 @@ h1 {
   gap: 6px;
   padding: 10px;
   overflow: hidden;
+}
+
+/* 팀 관리: 상단 툴바·하단 적용 고정, 중앙만 스크롤 */
+.settings-panel--teams {
+  gap: 0;
+  padding-bottom: 0;
+}
+
+.settings-panel--preferences {
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.general-lang-row {
+  align-items: center;
+  gap: 10px;
+}
+
+.general-lang-row .stealth-label {
+  flex-shrink: 0;
+  max-width: 42%;
+}
+
+.locale-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 168px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  color: #c8d8ea;
+  font-size: 11px;
+  -webkit-app-region: no-drag;
+}
+
+.general-lang-hint {
+  margin: 0;
+  padding: 0 2px 2px;
+  font-size: 9px;
+  line-height: 1.4;
+  color: #6b7f96;
+}
+
+.settings-teams-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  padding-bottom: 8px;
+}
+
+.settings-teams-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-teams-scroll > .team-checkbox-list.sport-list {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* 축구: 리그 탭 고정, 팀 목록만 세로 스크롤 */
+#soccer-setup-section:not(.hidden) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  gap: 4px;
+}
+
+#soccer-setup-section:not(.hidden) .soccer-league-subtabs {
+  flex-shrink: 0;
+}
+
+#soccer-checkbox-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-teams-footer {
+  flex-shrink: 0;
+  padding: 10px 0 8px;
+  margin-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgb(30, 34, 40);
+  position: relative;
+  z-index: 3;
 }
 
 .setup-hint {
@@ -506,38 +623,45 @@ h1 {
   display: none !important;
 }
 
-#save-favorite-btn {
-  height: 28px;
-  border-radius: 4px;
-  border: none;
-  margin-top: 4px;
+#save-favorite-btn,
+.btn-apply-favorites {
+  width: 100%;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(77, 140, 255, 0.45);
+  margin: 0;
   flex-shrink: 0;
-  background: rgba(77, 140, 255, 0.18);
-  color: #b8d0f8;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  padding: 0;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-#save-favorite-btn:hover {
-  background: rgba(77, 140, 255, 0.32);
+  background: linear-gradient(180deg, rgba(77, 140, 255, 0.35) 0%, rgba(77, 140, 255, 0.2) 100%);
   color: #e8f0ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+  -webkit-app-region: no-drag;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
-/* ── 내 구단 뷰 (마이 팀 + ALL GAMES 한 덩어리로 통합 스크롤) ── */
+#save-favorite-btn:hover,
+.btn-apply-favorites:hover {
+  background: linear-gradient(180deg, rgba(90, 150, 255, 0.5) 0%, rgba(77, 140, 255, 0.35) 100%);
+  border-color: rgba(120, 170, 255, 0.65);
+  color: #ffffff;
+}
+
+#save-favorite-btn:active,
+.btn-apply-favorites:active {
+  transform: scale(0.98);
+}
+
+/* ── 내 구단 뷰: 콘텐츠 높이만큼 자연 배치, 스크롤은 .widget 최상위만 사용 ── */
 .my-team-view {
-  flex: 1;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
+  height: auto;
 }
 
 .my-teams-list {
@@ -545,6 +669,7 @@ h1 {
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
+  height: auto;
   position: relative;
   z-index: 1;
   -webkit-app-region: no-drag;
@@ -554,19 +679,21 @@ h1 {
   touch-action: none;
 }
 
-/* ── All Games 섹션 ── */
+/* ── All Games 섹션 (본문 높이만큼 이어짐, 스크롤 없음) ── */
 .all-games-section {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  flex-shrink: 0;
   padding-bottom: 2px;
+  flex-shrink: 0;
+  height: auto;
 }
 
 .all-games-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 /* 토글 버튼 (ALL GAMES 타이틀 + 화살표) */
@@ -608,6 +735,7 @@ h1 {
 .games-filter-tabs {
   display: flex;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .games-filter-btn {
@@ -639,6 +767,8 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
+  height: auto;
 }
 
 /* 게임 행 (compact row) */
@@ -779,6 +909,7 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  height: auto;
   position: relative;
   cursor: grab;
   user-select: none;
@@ -991,17 +1122,36 @@ h1 {
   flex-shrink: 0;
 }
 
+.card-next-match {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-next-prefix {
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #6b7f96;
+  flex-shrink: 0;
+  line-height: 1;
+  text-transform: lowercase;
+}
+
 .card-next-logo {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .card-next-opponent {
   font-size: 9px;
-  color: #a8bdd6;
+  font-weight: 600;
+  color: #c8d8ea;
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1622,6 +1772,7 @@ h2 {
   padding: 36px 20px 28px;
   gap: 8px;
   text-align: center;
+  flex-shrink: 0;
 }
 .empty-state.hidden { display: none; }
 
@@ -1698,6 +1849,10 @@ body.coder-mode .widget.mono {
   border-color: rgba(255, 255, 255, 0.08) !important;
   font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
   color: #d4d4d4;
+}
+
+body.coder-mode .top-bar {
+  background-color: #1e1e1e;
 }
 
 body.coder-mode .brand-title {
@@ -1843,6 +1998,11 @@ body.coder-mode .settings-tabs,
 body.coder-mode .stealth-row,
 body.coder-mode .team-checkbox-item {
   font-family: inherit;
+}
+
+body.coder-mode .settings-teams-footer {
+  background-color: #1e1e1e;
+  border-top-color: rgba(255, 255, 255, 0.06);
 }
 
 body.coder-mode .empty-state-emoji {

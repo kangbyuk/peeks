@@ -557,8 +557,12 @@ async function fetchNextGame(teamId, sport = 'nba', leagueId = null) {
       date: next.date,
       isHome: myCompetitor?.homeAway === 'home',
       opponent: {
-        name: opp?.team?.shortDisplayName || opp?.team?.displayName || '상대팀',
-        abbreviation: opp?.team?.abbreviation || '',
+        name:
+          opp?.team?.displayName
+          || opp?.team?.shortDisplayName
+          || opp?.team?.name
+          || '상대팀',
+        abbreviation: opp?.team?.abbreviation || opp?.team?.shortDisplayName || '',
         logo: opp?.team?.logo || opp?.team?.logos?.[0]?.href || ''
       }
     };
