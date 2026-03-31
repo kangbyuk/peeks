@@ -110,8 +110,10 @@ const I18N = {
     'loading.mlbSeason': 'MLB 시즌 준비 중',
     'loading.seasonPrep': '시즌 데이터 준비 중',
     'loading.leagueFail': '{name} 로딩 실패',
-    'mlb.sampleBtn': '데모 순위 보기',
-    'mlb.sampleLoaded': '데모 순위를 불러왔습니다'
+    'mlb.div.east': '동부',
+    'mlb.div.central': '중부',
+    'mlb.div.west': '서부',
+    'mlb.div.other': '기타'
   },
   en: {
     'tab.stealth': '🕵️ Stealth',
@@ -171,8 +173,10 @@ const I18N = {
     'loading.mlbSeason': 'MLB season not ready',
     'loading.seasonPrep': 'Season data not ready',
     'loading.leagueFail': '{name} failed to load',
-    'mlb.sampleBtn': 'Load demo standings',
-    'mlb.sampleLoaded': 'Demo standings loaded'
+    'mlb.div.east': 'East',
+    'mlb.div.central': 'Central',
+    'mlb.div.west': 'West',
+    'mlb.div.other': 'Other'
   }
 };
 
@@ -291,8 +295,6 @@ const emptyStateBtnEl = document.getElementById('empty-state-btn');
 const tablesViewEl = document.getElementById('tables-view');
 const nbaTablesEl     = document.getElementById('nba-tables');
 const mlbTablesEl     = document.getElementById('mlb-tables');
-const mlbSampleRowEl  = document.getElementById('mlb-sample-row');
-const mlbSampleBtnEl  = document.getElementById('mlb-sample-btn');
 const soccerTablesEl  = document.getElementById('soccer-tables');
 const soccerStdBodyEl = document.getElementById('soccer-standings-body');
 const soccerStandingsSubtabsEl = document.getElementById('soccer-standings-subtabs');
@@ -408,6 +410,8 @@ function reconcileUclSoccerFavoritesToDomestic(leagueIdJustLoaded) {
 let activeSetupSport = 'nba';
 let activeStandingsSport = 'nba';
 let mlbStandingsLoaded = false;
+/** 언어 전환 시 지구 헤더·테이블 헤더 재렌더용 */
+let cachedMlbStandingsResult = null;
 let eplStandingsLoaded = false;  // 하위 호환
 
 // ── 스텔스 상태 ──
@@ -972,7 +976,13 @@ function formatRankLabel(team, sport) {
   if (!team) return '-';
   const isSoccer = sport === 'soccer' || sport === 'epl';
   const conf = team.conference?.slice(0, 1) || '';
-  const rk = team.rank ?? '';
+  const rk =
+    sport === 'mlb' &&
+    team.playoffSeed != null &&
+    String(team.playoffSeed) !== '' &&
+    Number.isFinite(Number(team.playoffSeed))
+      ? team.playoffSeed
+      : team.rank ?? '';
   if (isSoccer) {
     return peeksLang === 'ko' ? `${rk}위` : `#${rk}`;
   }
@@ -1278,7 +1288,20 @@ function mlbMiniTableHeadHtml() {
   </tr></thead>`;
 }
 
-/** MLB 지구별 패널 HTML (main.js mlbByDivision) */
+function mlbDivisionHeadingHtml(div) {
+  if (div.division === 'other') {
+    return `<h3 class="mlb-division-title">${escapeHtmlText(t('mlb.div.other'))}</h3>`;
+  }
+  if (div.division && ['east', 'central', 'west'].includes(div.division)) {
+    return `<h3 class="mlb-division-title">${escapeHtmlText(t(`mlb.div.${div.division}`))}</h3>`;
+  }
+  if (div.label) {
+    return `<h3 class="mlb-division-title">${escapeHtmlText(div.label)}</h3>`;
+  }
+  return '';
+}
+
+/** MLB 지구별 패널 HTML (main.js mlbByDivision — 항상 지구 단위) */
 function renderMlbStandingsByDivision(result) {
   const wrapA = mlbAmericanDivisionsEl;
   const wrapN = mlbNationalDivisionsEl;
@@ -1295,25 +1318,15 @@ function renderMlbStandingsByDivision(result) {
     return list
       .map((div) => {
         const rows = div.rows || [];
-        const title = div.label
-          ? `<h3 class="mlb-division-title">${escapeHtmlText(div.label)}</h3>`
-          : '';
+        const title = mlbDivisionHeadingHtml(div);
         const body = rows.map((r) => teamRow(r, 'mlb', { mlbDivision: true })).join('');
         return `<section class="mlb-division-block">${title}<table class="rank-table mlb-division-table">${head}<tbody>${body}</tbody></table></section>`;
       })
       .join('');
   };
 
-  if (by?.american?.length || by?.national?.length) {
-    wrapA.innerHTML = renderLeagueDivisions(by.american);
-    wrapN.innerHTML = renderLeagueDivisions(by.national);
-    return;
-  }
-
-  const aRows = (result.eastern || []).map((r) => teamRow(r, 'mlb', { mlbDivision: true })).join('');
-  const nRows = (result.western || []).map((r) => teamRow(r, 'mlb', { mlbDivision: true })).join('');
-  wrapA.innerHTML = `<section class="mlb-division-block"><table class="rank-table mlb-division-table">${head}<tbody>${aRows}</tbody></table></section>`;
-  wrapN.innerHTML = `<section class="mlb-division-block"><table class="rank-table mlb-division-table">${head}<tbody>${nRows}</tbody></table></section>`;
+  wrapA.innerHTML = renderLeagueDivisions(by?.american);
+  wrapN.innerHTML = renderLeagueDivisions(by?.national);
 }
 
 function mlbDivisionsLoadingHtml(message) {
@@ -1554,7 +1567,6 @@ function activateStandingsTab(sport) {
   });
   nbaTablesEl.classList.toggle('hidden', sport !== 'nba');
   mlbTablesEl.classList.toggle('hidden', sport !== 'mlb');
-  if (mlbSampleRowEl) mlbSampleRowEl.classList.toggle('hidden', sport !== 'mlb');
   soccerTablesEl.classList.toggle('hidden', sport !== 'soccer');
   soccerStandingsSubtabsEl.classList.toggle('hidden', sport !== 'soccer');
 
@@ -1595,6 +1607,7 @@ async function loadMlbStandings() {
 
     mlbTeams = [...(result.eastern || []), ...(result.western || [])];
     mlbStandingsLoaded = true;
+    cachedMlbStandingsResult = result;
 
     renderMlbStandingsByDivision(result);
 
@@ -1608,29 +1621,8 @@ async function loadMlbStandings() {
     if (!mlbTeams.length && mlbCheckboxListEl) {
       mlbCheckboxListEl.innerHTML = `<div style="font-size:10px;color:#7a8fa8;padding:6px 4px">${escapeHtmlText(t('loading.mlbSeason'))}</div>`;
     }
+    cachedMlbStandingsResult = null;
     // mlbStandingsLoaded는 false 유지 → 다음 탭 전환 시 재시도
-  }
-}
-
-async function loadMlbSampleStandings() {
-  if (mlbAmericanDivisionsEl) mlbAmericanDivisionsEl.innerHTML = mlbDivisionsLoadingHtml(t('allGames.loadingGeneric'));
-  if (mlbNationalDivisionsEl) mlbNationalDivisionsEl.innerHTML = mlbDivisionsLoadingHtml(t('allGames.loadingGeneric'));
-  try {
-    const result = await window.standingsAPI.fetchMlbSampleStandings();
-    if (!result || result.error) throw new Error(result?.error || 'sample');
-    mlbTeams = [...(result.eastern || []), ...(result.western || [])];
-    mlbStandingsLoaded = true;
-    renderMlbStandingsByDivision(result);
-    fillCheckboxList(mlbTeams, 'mlb');
-    setStatus(t('mlb.sampleLoaded'));
-    setTimeout(() => {
-      if (statusEl?.textContent === t('mlb.sampleLoaded')) setStatus('');
-    }, 2500);
-  } catch (err) {
-    console.warn('MLB 데모 순위 실패', err.message);
-    const errHtml = mlbDivisionsLoadingHtml(t('loading.seasonPrep'));
-    if (mlbAmericanDivisionsEl) mlbAmericanDivisionsEl.innerHTML = errHtml;
-    if (mlbNationalDivisionsEl) mlbNationalDivisionsEl.innerHTML = errHtml;
   }
 }
 
@@ -1797,6 +1789,9 @@ function refreshLocaleDependentUI() {
   syncCoderEmptyStateText();
   renderTeamCards();
   renderAllGames();
+  if (mlbStandingsLoaded && cachedMlbStandingsResult) {
+    renderMlbStandingsByDivision(cachedMlbStandingsResult);
+  }
 }
 
 document.getElementById('locale-select')?.addEventListener('change', (e) => {
@@ -1889,10 +1884,6 @@ document.querySelectorAll('.sport-tab').forEach((btn) => {
 document.querySelectorAll('.standings-tab').forEach((btn) => {
   btn.addEventListener('click', () => activateStandingsTab(btn.dataset.standings));
 });
-
-if (mlbSampleBtnEl) {
-  mlbSampleBtnEl.addEventListener('click', () => loadMlbSampleStandings());
-}
 
 teamSearchInput.addEventListener('input', () => {
   const val = teamSearchInput.value;

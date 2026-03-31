@@ -2,7 +2,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('standingsAPI', {
   fetchStandings:       (sport = 'nba') => ipcRenderer.invoke('standings:fetch', sport),
-  fetchMlbSampleStandings: () => ipcRenderer.invoke('standings:fetchMlbSample'),
   fetchScoreboardByTeam:(teamId, sport = 'nba', leagueId = null) =>
     ipcRenderer.invoke('scoreboard:fetchByTeam', teamId, sport, leagueId),
   fetchNextGame:        (teamId, sport = 'nba', leagueId = null) =>
