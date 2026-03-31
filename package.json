@@ -1,10 +1,11 @@
 {
   "name": "peeks",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "PEEKS — always-on-top sports widget built with Electron",
   "main": "main.js",
   "scripts": {
     "start": "env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron .",
+    "start:mlb-sample": "env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron . --mlb-sample",
     "dev": "env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron .",
     "clean": "rm -rf \"$HOME/Library/Caches/Electron\" \"$HOME/Library/Caches/electron\" \"$HOME/Library/Caches/PEEKS\" \"$HOME/Library/Caches/com.peeks.app\" \"$HOME/Library/Application Support/PEEKS/Cache\" \"$HOME/Library/Application Support/PEEKS/Code Cache\" \"$HOME/Library/Application Support/PEEKS/GPUCache\" \"$HOME/Library/Application Support/PEEKS/DawnCache\" \"$HOME/Library/Application Support/PEEKS/DawnWebGPUCache\" && echo \"캐시 정리 완료. PEEKS를 완전히 종료한 뒤 npm start 하세요.\"",
     "icons:win": "node scripts/generate-win-ico.mjs",
@@ -13,7 +14,7 @@
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
     "build:all": "electron-builder --mac --win",
-    "release:upload": "gh release upload v1.1.0 \"dist/PEEKS-1.1.0-universal.dmg\" \"dist/PEEKS-Setup-1.1.0.exe\" --clobber",
+    "release:upload": "gh release upload v1.2.0 \"dist/PEEKS-1.2.0-universal.dmg\" \"dist/PEEKS-Setup-1.2.0.exe\" --clobber",
     "release:publish": "bash scripts/publish-github-release.sh"
   },
   "build": {

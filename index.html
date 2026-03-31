@@ -176,6 +176,9 @@
           <button class="standings-tab" data-standings="mlb">⚾ MLB</button>
           <button class="standings-tab" data-standings="soccer">⚽</button>
         </div>
+        <div id="mlb-sample-row" class="mlb-sample-row hidden" role="region" aria-label="MLB demo">
+          <button type="button" id="mlb-sample-btn" class="mlb-sample-btn" data-i18n="mlb.sampleBtn">데모 순위 보기</button>
+        </div>
         <!-- 축구 리그 서브탭 (⚽ 선택 시 표시) -->
         <div id="soccer-standings-subtabs" class="soccer-standings-subtabs hidden">
           <button class="soccer-std-tab active" data-league="eng.1">EPL</button>
@@ -219,39 +222,15 @@
           </article>
         </div>
 
-        <!-- MLB 순위 -->
-        <div id="mlb-tables" class="tables hidden">
-          <article class="panel">
+        <!-- MLB 순위 (리그 → East/Central/West 지구별) -->
+        <div id="mlb-tables" class="tables tables--mlb hidden">
+          <article class="panel mlb-league-panel">
             <h2 data-i18n="table.american">American</h2>
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th class="col-rank">#</th>
-                  <th class="col-team" data-i18n="table.team">Team</th>
-                  <th class="col-w">W</th>
-                  <th class="col-l">L</th>
-                  <th class="col-pct">PCT</th>
-                  <th class="col-gb">GB</th>
-                </tr>
-              </thead>
-              <tbody id="al-body"></tbody>
-            </table>
+            <div id="mlb-american-divisions" class="mlb-divisions-wrap"></div>
           </article>
-          <article class="panel">
+          <article class="panel mlb-league-panel">
             <h2 data-i18n="table.national">National</h2>
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th class="col-rank">#</th>
-                  <th class="col-team" data-i18n="table.team">Team</th>
-                  <th class="col-w">W</th>
-                  <th class="col-l">L</th>
-                  <th class="col-pct">PCT</th>
-                  <th class="col-gb">GB</th>
-                </tr>
-              </thead>
-              <tbody id="nl-body"></tbody>
-            </table>
+            <div id="mlb-national-divisions" class="mlb-divisions-wrap"></div>
           </article>
         </div>
 

@@ -277,6 +277,42 @@ function getConferenceEntries(conf) {
   return (conf?.children || []).flatMap((div) => div.standings?.entries || []);
 }
 
+function mlbDivisionSortKey(name) {
+  const n = String(name || '').toLowerCase();
+  if (n.includes('east')) return 0;
+  if (n.includes('central')) return 1;
+  if (n.includes('west')) return 2;
+  return 9;
+}
+
+function formatMlbDivisionLabel(divName) {
+  const n = String(divName || '').toLowerCase();
+  if (n.includes('east')) return 'East';
+  if (n.includes('central')) return 'Central';
+  if (n.includes('west')) return 'West';
+  const s = String(divName || '').trim();
+  return s.replace(/^american\s+league\s+/i, '').replace(/^national\s+league\s+/i, '').trim() || 'Division';
+}
+
+/** AL/NL 각각 [{ label, rows }, ...] — ESPN 디비전 children 기준 */
+function mapMlbConferenceToDivisions(conf) {
+  if (!conf) return [];
+  const rawChildren = conf.children || [];
+  const withEntries = rawChildren.filter((d) => d.standings?.entries?.length);
+  if (withEntries.length) {
+    return [...withEntries]
+      .sort((a, b) => mlbDivisionSortKey(a.name) - mlbDivisionSortKey(b.name))
+      .map((div) => {
+        const label = formatMlbDivisionLabel(div.name);
+        const rows = mapConferenceRows(div.standings.entries);
+        return { label, rows };
+      });
+  }
+  const flat = mapConferenceRows(getConferenceEntries(conf));
+  if (flat.length) return [{ label: '', rows: flat }];
+  return [];
+}
+
 function parseEspnStandingsPayload(payload, sport = 'nba') {
   const config = SPORT_CONFIG[sport] || SPORT_CONFIG.nba;
   const children = payload?.children || [];
@@ -287,6 +323,21 @@ function parseEspnStandingsPayload(payload, sport = 'nba') {
   const confB = children.find((c) =>
     String(c.name || '').toLowerCase().includes(config.confNames[1])
   );
+
+  if (sport === 'mlb') {
+    const americanDivisions = mapMlbConferenceToDivisions(confA);
+    const nationalDivisions = mapMlbConferenceToDivisions(confB);
+    const flatAmerican = americanDivisions.flatMap((d) => d.rows);
+    const flatNational = nationalDivisions.flatMap((d) => d.rows);
+    if (!flatAmerican.length && !flatNational.length) return null;
+    return {
+      eastern: flatAmerican.map((row) => ({ ...row, conference: 'American' })),
+      western: flatNational.map((row) => ({ ...row, conference: 'National' })),
+      mlbByDivision: { american: americanDivisions, national: nationalDivisions },
+      sport,
+      fetchedAt: new Date().toISOString()
+    };
+  }
 
   const eastern = mapConferenceRows(getConferenceEntries(confA));
   const western = mapConferenceRows(getConferenceEntries(confB));
@@ -301,6 +352,108 @@ function parseEspnStandingsPayload(payload, sport = 'nba') {
     western: western.map((row) => ({ ...row, conference: config.confLabels[1] })),
     sport,
     fetchedAt: new Date().toISOString()
+  };
+}
+
+function isMlbSampleMode() {
+  try {
+    if (process.argv.includes('--mlb-sample')) return true;
+    if (String(process.env.PEEKS_MLB_SAMPLE || '').trim() === '1') return true;
+  } catch (_) { /* noop */ }
+  return false;
+}
+
+function mlbSampleRow(teamId, team, abbr, w, l, pct, gb, rank, clincher = '') {
+  return {
+    teamId: String(teamId),
+    team,
+    abbr,
+    logo: `https://a.espncdn.com/i/teamlogos/mlb/500/${teamId}.png`,
+    w: String(w),
+    l: String(l),
+    wl: `${w}-${l}`,
+    pct,
+    gb,
+    clincher,
+    rank
+  };
+}
+
+/** MLB 지구별 데모 순위 (네트워크 없이 UI 확인용) */
+function getMlbSampleStandingsResult() {
+  const americanDivisions = [
+    {
+      label: 'East',
+      rows: [
+        mlbSampleRow(10, 'New York Yankees', 'NYY', 95, 67, '.586', '-', 1, 'y'),
+        mlbSampleRow(14, 'Toronto Blue Jays', 'TOR', 89, 73, '.549', '6', 2, 'x'),
+        mlbSampleRow(30, 'Tampa Bay Rays', 'TB', 84, 78, '.519', '11', 3, '*'),
+        mlbSampleRow(2, 'Boston Red Sox', 'BOS', 81, 81, '.500', '14', 4, ''),
+        mlbSampleRow(1, 'Baltimore Orioles', 'BAL', 76, 86, '.469', '19', 5, '')
+      ]
+    },
+    {
+      label: 'Central',
+      rows: [
+        mlbSampleRow(5, 'Cleveland Guardians', 'CLE', 92, 70, '.568', '-', 1, 'y'),
+        mlbSampleRow(9, 'Minnesota Twins', 'MIN', 87, 75, '.537', '5', 2, 'x'),
+        mlbSampleRow(6, 'Detroit Tigers', 'DET', 81, 81, '.500', '11', 3, ''),
+        mlbSampleRow(7, 'Kansas City Royals', 'KC', 78, 84, '.481', '14', 4, ''),
+        mlbSampleRow(4, 'Chicago White Sox', 'CHW', 72, 90, '.444', '20', 5, '')
+      ]
+    },
+    {
+      label: 'West',
+      rows: [
+        mlbSampleRow(18, 'Houston Astros', 'HOU', 91, 71, '.562', '-', 1, 'y'),
+        mlbSampleRow(13, 'Texas Rangers', 'TEX', 86, 76, '.531', '5', 2, '*'),
+        mlbSampleRow(12, 'Seattle Mariners', 'SEA', 83, 79, '.512', '8', 3, ''),
+        mlbSampleRow(3, 'Los Angeles Angels', 'LAA', 77, 85, '.475', '14', 4, ''),
+        mlbSampleRow(11, 'Athletics', 'ATH', 68, 94, '.420', '23', 5, '')
+      ]
+    }
+  ];
+  const nationalDivisions = [
+    {
+      label: 'East',
+      rows: [
+        mlbSampleRow(15, 'Atlanta Braves', 'ATL', 94, 68, '.580', '-', 1, 'y'),
+        mlbSampleRow(22, 'Philadelphia Phillies', 'PHI', 90, 72, '.556', '4', 2, 'x'),
+        mlbSampleRow(21, 'New York Mets', 'NYM', 85, 77, '.525', '9', 3, '*'),
+        mlbSampleRow(28, 'Miami Marlins', 'MIA', 79, 83, '.488', '15', 4, ''),
+        mlbSampleRow(20, 'Washington Nationals', 'WSH', 71, 91, '.438', '23', 5, '')
+      ]
+    },
+    {
+      label: 'Central',
+      rows: [
+        mlbSampleRow(8, 'Milwaukee Brewers', 'MIL', 93, 69, '.574', '-', 1, 'y'),
+        mlbSampleRow(16, 'Chicago Cubs', 'CHC', 88, 74, '.543', '5', 2, 'x'),
+        mlbSampleRow(26, 'St. Louis Cardinals', 'STL', 82, 80, '.506', '11', 3, ''),
+        mlbSampleRow(17, 'Cincinnati Reds', 'CIN', 79, 83, '.488', '14', 4, ''),
+        mlbSampleRow(23, 'Pittsburgh Pirates', 'PIT', 74, 88, '.457', '19', 5, '')
+      ]
+    },
+    {
+      label: 'West',
+      rows: [
+        mlbSampleRow(19, 'Los Angeles Dodgers', 'LAD', 98, 64, '.605', '-', 1, 'y'),
+        mlbSampleRow(25, 'San Francisco Giants', 'SF', 86, 76, '.531', '12', 2, 'x'),
+        mlbSampleRow(29, 'San Diego Padres', 'SD', 84, 78, '.519', '14', 3, '*'),
+        mlbSampleRow(24, 'Arizona Diamondbacks', 'AZ', 80, 82, '.494', '18', 4, ''),
+        mlbSampleRow(27, 'Colorado Rockies', 'COL', 63, 99, '.389', '35', 5, '')
+      ]
+    }
+  ];
+  const flatA = americanDivisions.flatMap((d) => d.rows);
+  const flatN = nationalDivisions.flatMap((d) => d.rows);
+  return {
+    eastern: flatA.map((row) => ({ ...row, conference: 'American' })),
+    western: flatN.map((row) => ({ ...row, conference: 'National' })),
+    mlbByDivision: { american: americanDivisions, national: nationalDivisions },
+    sport: 'mlb',
+    fetchedAt: new Date().toISOString(),
+    sample: true
   };
 }
 
@@ -364,6 +517,9 @@ async function fetchSoccerStandings(leagueId = 'eng.1') {
 }
 
 async function fetchStandings(sport = 'nba') {
+  if (sport === 'mlb' && isMlbSampleMode()) {
+    return getMlbSampleStandingsResult();
+  }
   const config = SPORT_CONFIG[sport] || SPORT_CONFIG.nba;
 
   for (const url of config.standingsUrls) {
@@ -693,6 +849,8 @@ app.whenReady().then(() => {
       return { error: error.message || 'Unknown error' };
     }
   });
+
+  ipcMain.handle('standings:fetchMlbSample', async () => getMlbSampleStandingsResult());
 
   ipcMain.handle('scoreboard:fetchByTeam', async (_, teamId, sport = 'nba', leagueId = null) => {
     return fetchTeamGameStatus(teamId, sport, leagueId);
