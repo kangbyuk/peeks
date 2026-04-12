@@ -942,7 +942,7 @@ function cardFooterHTML(nextGame, status) {
     </div>`;
 }
 
-// ── 홈 카드 순서: ① Live/In-Progress 최상단 ② 그 외는 사용자(favoriteTeams) 순서 유지
+// ── 홈 카드 순서: ① Live/In-Progress 최상단 ② 오늘 경기 남은 팀 ③ 그 외는 사용자(favoriteTeams) 순서 유지
 function favoriteCardStatusKey(ft) {
   return `${ft.sport}_${ft.teamId}`;
 }
@@ -951,25 +951,33 @@ function isFavoriteCardLive(ft) {
   return teamGameStatuses[favoriteCardStatusKey(ft)]?.mode === 'live';
 }
 
+function isFavoriteCardPreToday(ft) {
+  return teamGameStatuses[favoriteCardStatusKey(ft)]?.mode === 'pre';
+}
+
 function orderedFavoriteTeamsForDisplay() {
   const live = [];
+  const pre  = [];
   const rest = [];
   for (const ft of favoriteTeams) {
     if (isFavoriteCardLive(ft)) live.push(ft);
+    else if (isFavoriteCardPreToday(ft)) pre.push(ft);
     else rest.push(ft);
   }
-  return [...live, ...rest];
+  return [...live, ...pre, ...rest];
 }
 
-/** 드래그 후 DOM 순서 → localStorage용: [라이브들을 화면에서의 순서대로] + [비라이브들 순서대로] */
+/** 드래그 후 DOM 순서 → localStorage용: [라이브들을 화면에서의 순서대로] + [pre들 순서대로] + [비라이브들 순서대로] */
 function favoriteTeamsBaseOrderFromDomOrder(domOrder) {
   const live = [];
+  const pre  = [];
   const rest = [];
   for (const ft of domOrder) {
     if (isFavoriteCardLive(ft)) live.push(ft);
+    else if (isFavoriteCardPreToday(ft)) pre.push(ft);
     else rest.push(ft);
   }
-  return [...live, ...rest];
+  return [...live, ...pre, ...rest];
 }
 
 function formatRankLabel(team, sport) {

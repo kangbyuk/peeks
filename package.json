@@ -1,6 +1,6 @@
 {
   "name": "peeks",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "PEEKS — always-on-top sports widget built with Electron",
   "main": "main.js",
   "scripts": {
@@ -13,7 +13,7 @@
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
     "build:all": "electron-builder --mac --win",
-    "release:upload": "gh release upload v1.2.0 \"dist/PEEKS-1.2.0-universal.dmg\" \"dist/PEEKS-Setup-1.2.0.exe\" --clobber",
+    "release:upload": "gh release upload v1.2.1 \"dist/PEEKS-1.2.1-universal.dmg\" \"dist/PEEKS-Setup-1.2.1.exe\" --clobber",
     "release:publish": "bash scripts/publish-github-release.sh"
   },
   "build": {
