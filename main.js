@@ -724,12 +724,57 @@ async function fetchTeamGameStatus(teamId, sport = 'nba', leagueId = null) {
   };
 }
 
+/** 축구: 팀 정보 API의 nextEvent 필드로 다음 경기 추출 */
+async function fetchNextGameSoccer(teamId, leagueId) {
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/teams/${teamId}`;
+  const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
+  const nextEvents = Array.isArray(response.data?.team?.nextEvent) ? response.data.team.nextEvent : [];
+  const now = new Date();
+
+  const next = nextEvents.find((ev) => {
+    const state = ev.competitions?.[0]?.status?.type?.state;
+    return state === 'pre' && new Date(ev.date) > now;
+  });
+
+  if (!next) return { seasonEnd: true };
+
+  const competition = next.competitions?.[0];
+  const competitors = competition?.competitors || [];
+  const myCompetitor = competitors.find((c) => String(c.id) === String(teamId));
+  const opp = competitors.find((c) => String(c.id) !== String(teamId));
+
+  return {
+    date: next.date,
+    isHome: myCompetitor?.homeAway === 'home',
+    opponent: {
+      name:
+        opp?.team?.displayName
+        || opp?.team?.shortDisplayName
+        || opp?.team?.name
+        || '상대팀',
+      abbreviation: opp?.team?.abbreviation || opp?.team?.shortDisplayName || '',
+      logo: opp?.team?.logos?.[0]?.href || opp?.team?.logo || ''
+    }
+  };
+}
+
 async function fetchNextGame(teamId, sport = 'nba', leagueId = null) {
   if (!teamId) return null;
   if (sport === 'epl') { sport = 'soccer'; leagueId = leagueId || 'eng.1'; }
-  const scheduleBase = (sport === 'soccer' && leagueId)
-    ? `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/teams`
-    : (SPORT_CONFIG[sport]?.scheduleBase || SPORT_CONFIG.nba.scheduleBase);
+
+  // 축구: nextEvent 필드를 가진 팀 정보 API 사용 (schedule 엔드포인트는 미래 일정 미포함)
+  if (sport === 'soccer' && leagueId) {
+    try {
+      return await fetchNextGameSoccer(teamId, leagueId);
+    } catch (error) {
+      console.error(`[schedule:soccer:${leagueId}] fetchNextGame 실패`, {
+        teamId, message: error.message, status: error.response?.status
+      });
+      return null;
+    }
+  }
+
+  const scheduleBase = SPORT_CONFIG[sport]?.scheduleBase || SPORT_CONFIG.nba.scheduleBase;
   const url = `${scheduleBase}/${teamId}/schedule`;
   try {
     const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });

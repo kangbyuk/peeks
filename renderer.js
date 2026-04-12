@@ -1053,7 +1053,7 @@ function renderTeamCards() {
 
       let footerHTML = '';
       try {
-        footerHTML = !isSoccer ? cardFooterHTML(nextGame, status) : '';
+        footerHTML = cardFooterHTML(nextGame, status);
       } catch (e) {
         console.error(`[renderCard] footerHTML 오류 (${key}):`, e);
       }
