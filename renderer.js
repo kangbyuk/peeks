@@ -991,10 +991,14 @@ function formatRankLabel(team, sport) {
     Number.isFinite(Number(team.playoffSeed))
       ? team.playoffSeed
       : team.rank ?? '';
+
+  const lv = clincherLevel(team.clincher, sport);
+  const icon = lv === 3 ? ' 🏆' : lv === 2 ? ' 👑' : lv === 1 ? ' ✓' : '';
+
   if (isSoccer) {
-    return peeksLang === 'ko' ? `${rk}위` : `#${rk}`;
+    return peeksLang === 'ko' ? `${rk}위${icon}` : `#${rk}${icon}`;
   }
-  return peeksLang === 'ko' ? `${conf}${rk}위` : `${conf}#${rk}`;
+  return peeksLang === 'ko' ? `${conf}${rk}위${icon}` : `${conf}#${rk}${icon}`;
 }
 
 // ── 팀 카드 목록 렌더링 ──
@@ -1271,12 +1275,31 @@ function getRowClass(rank, sport) {
   return '';
 }
 
-// ── 확정 마크 포맷 ──
-function clincherBadge(c) {
-  if (!c || c === '-') return '';
-  // 의미 있는 값만 표시 (e=탈락은 제외)
-  if (c === 'e') return '';
-  return `<span class="clincher-badge">(${c})</span>`;
+// ── 확정 마크 ──
+// z=1번 시드, y=지구 우승(MLB만 강조), x=포스트시즌 확정, p/pb=순위 확정, *=1번 시드(대체), e=탈락
+function clincherLevel(c, sport) {
+  if (!c || c === '-' || c === 'e') return 0;
+  if (c === 'z' || c === '*') return 3;          // 1번 시드
+  if (c === 'y') return sport === 'mlb' ? 2 : 1; // 지구 우승: MLB만 👑, NBA는 ✓
+  if (c === 'x') return 1;                        // 포스트시즌 확정
+  if (c.startsWith('p')) return 1;               // p, pb 등 순위/플레이인 확정
+  return 1;
+}
+
+function clincherBadge(c, sport = 'nba') {
+  const lv = clincherLevel(c, sport);
+  if (!lv) return '';
+  const cls = lv >= 2 ? 'clincher-badge clincher-badge--gold' : 'clincher-badge';
+  const icon = lv === 3 ? '🏆' : lv === 2 ? '👑' : '✓';
+  return `<span class="${cls}">${icon}</span>`;
+}
+
+/** 행에 붙일 추가 CSS 클래스 (확정 여부) */
+function clincherRowClass(c, sport = 'nba') {
+  const lv = clincherLevel(c, sport);
+  if (lv >= 2) return 'row-clinched-gold';
+  if (lv === 1) return 'row-clinched';
+  return '';
 }
 
 // ── 로딩용 빈 행 ──
@@ -1360,11 +1383,16 @@ function teamRow(r, sport, opts) {
       ? `<img src="${r.logo}" alt="" onerror="this.style.display='none'" />`
       : '';
     const favMark = isFav ? '<span class="epl-fav-mark">★</span>' : '';
+    const zoneIcon = zone === 'row-ucl' ? '<span class="zone-badge zone-badge--ucl">UCL</span>'
+                   : zone === 'row-uel' ? '<span class="zone-badge zone-badge--uel">UEL</span>'
+                   : zone === 'row-rel' ? '<span class="zone-badge zone-badge--rel">↓</span>'
+                   : zone === 'row-pi'  ? '<span class="zone-badge zone-badge--pi">PO</span>'
+                   : '';
     return `
       <tr class="${zone}" data-team-id="${r.teamId}" data-sport="soccer" data-league="${leagueId}">
         <td class="col-rank">${r.rank ?? ''}</td>
         <td class="col-epl-logo">${logoHtml}</td>
-        <td class="col-team team">${r.team}${favMark}</td>
+        <td class="col-team team">${r.team}${zoneIcon}${favMark}</td>
         <td class="col-epl-num">${r.w ?? '-'}</td>
         <td class="col-epl-num">${r.d ?? '-'}</td>
         <td class="col-epl-num">${r.l ?? '-'}</td>
@@ -1372,12 +1400,14 @@ function teamRow(r, sport, opts) {
       </tr>`;
   }
 
-  const cls = opts?.mlbDivision ? '' : getRowClass(r.rank, sport);
+  const baseCls = opts?.mlbDivision ? '' : getRowClass(r.rank, sport);
+  const cCls = clincherRowClass(r.clincher, sport);
+  const cls = [baseCls, cCls].filter(Boolean).join(' ');
   const gbCell = sport === 'mlb' ? `<td class="col-gb">${r.gb ?? '-'}</td>` : '';
   return `
     <tr class="${cls}">
       <td class="col-rank">${r.rank ?? ''}</td>
-      <td class="col-team team">${r.team}${clincherBadge(r.clincher)}</td>
+      <td class="col-team team">${r.team}${clincherBadge(r.clincher, sport)}</td>
       <td class="col-w">${r.w ?? '-'}</td>
       <td class="col-l">${r.l ?? '-'}</td>
       <td class="col-pct">${r.pct}</td>

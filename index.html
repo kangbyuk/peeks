@@ -188,21 +188,6 @@
         <!-- NBA 순위 -->
         <div id="nba-tables" class="tables">
           <article class="panel">
-            <h2 data-i18n="table.eastern">Eastern</h2>
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th class="col-rank">#</th>
-                  <th class="col-team" data-i18n="table.team">Team</th>
-                  <th class="col-w">W</th>
-                  <th class="col-l">L</th>
-                  <th class="col-pct">PCT</th>
-                </tr>
-              </thead>
-              <tbody id="east-body"></tbody>
-            </table>
-          </article>
-          <article class="panel">
             <h2 data-i18n="table.western">Western</h2>
             <table class="rank-table">
               <thead>
@@ -215,6 +200,21 @@
                 </tr>
               </thead>
               <tbody id="west-body"></tbody>
+            </table>
+          </article>
+          <article class="panel">
+            <h2 data-i18n="table.eastern">Eastern</h2>
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th class="col-rank">#</th>
+                  <th class="col-team" data-i18n="table.team">Team</th>
+                  <th class="col-w">W</th>
+                  <th class="col-l">L</th>
+                  <th class="col-pct">PCT</th>
+                </tr>
+              </thead>
+              <tbody id="east-body"></tbody>
             </table>
           </article>
         </div>
@@ -232,7 +232,7 @@
         </div>
 
         <!-- Soccer 순위 (리그 공용) -->
-        <div id="soccer-tables" class="tables hidden">
+        <div id="soccer-tables" class="tables tables--soccer hidden">
           <div class="epl-standings-wrap">
             <table class="rank-table epl-rank-table">
               <thead>
