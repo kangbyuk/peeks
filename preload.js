@@ -14,6 +14,13 @@ contextBridge.exposeInMainWorld('standingsAPI', {
     ipcRenderer.invoke('standings:fetchSoccer', leagueId),
   // 하위 호환
   fetchEplStandings:    () => ipcRenderer.invoke('standings:fetchEpl'),
+  // UCL 토너먼트 대진표
+  fetchUclTournament:   () => ipcRenderer.invoke('ucl:fetchTournament'),
+  // KBO
+  kboFetchTeamStatus:   (teamCode) => ipcRenderer.invoke('kbo:fetchTeamStatus', teamCode),
+  kboFetchNextGame:     (teamCode) => ipcRenderer.invoke('kbo:fetchNextGame', teamCode),
+  kboFetchAllGames:     () => ipcRenderer.invoke('kbo:fetchAllGames'),
+  kboGetTeams:          () => ipcRenderer.invoke('kbo:getTeams'),
   /** 몰래보기: 최소화/숨김 시 렌더러가 폴링 간격 조절 */
   onPeekWindowState: (handler) => {
     if (typeof handler !== 'function') return () => {};

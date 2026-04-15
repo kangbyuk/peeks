@@ -614,6 +614,10 @@ function mapTeamGameStatus(event, teamId, sport = 'nba') {
   const opponentName = opponent?.team?.shortDisplayName || opponent?.team?.displayName || '상대팀';
   const isHome = myTeam.homeAway === 'home';
 
+  const venueObj = competition?.venue || {};
+  const venue = venueObj.fullName || '';
+  const venueCity = venueObj.address?.city || '';
+
   // ── MLB 전용: 투수 정보 ──
   let pitcher = null;
   if (sport === 'mlb') {
@@ -647,12 +651,12 @@ function mapTeamGameStatus(event, teamId, sport = 'nba') {
       mode: 'live',
       myScore, oppScore, myAbbr, oppAbbr,
       period: shortDetail || detail,
-      isHome, pitcher,
+      isHome, pitcher, venue, venueCity,
       scoreKey: `${myScore}-${oppScore}`
     };
   }
   if (state === 'pre') {
-    return { mode: 'pre', myAbbr, oppAbbr, opponentName, isHome, startDateISO: event.date, pitcher };
+    return { mode: 'pre', myAbbr, oppAbbr, opponentName, isHome, startDateISO: event.date, pitcher, venue, venueCity };
   }
   if (state === 'post') {
     const myWon = Number(myScore) > Number(oppScore);
@@ -660,7 +664,7 @@ function mapTeamGameStatus(event, teamId, sport = 'nba') {
       mode: 'post',
       myScore, oppScore, myAbbr, oppAbbr,
       result: myWon ? 'W' : 'L',
-      isHome, pitcher,
+      isHome, pitcher, venue, venueCity,
       scoreKey: `${myScore}-${oppScore}`
     };
   }
@@ -898,6 +902,184 @@ function mapGameRow(event) {
   };
 }
 
+// ── UCL 토너먼트 단계 판별 및 대진표 fetch ──
+// ── UCL 토너먼트 라운드 정의 ──
+const UCL_ROUNDS = [
+  { key: 'playoffs',  name: 'Knockout Round Playoffs', nameKo: '플레이오프',  start: '2026-01-30', end: '2026-02-27' },
+  { key: 'r16',       name: 'Round of 16',             nameKo: '16강',        start: '2026-02-27', end: '2026-03-20' },
+  { key: 'qf',        name: 'Quarterfinals',           nameKo: '8강',         start: '2026-03-20', end: '2026-04-17' },
+  { key: 'sf',        name: 'Semifinals',              nameKo: '4강',         start: '2026-04-17', end: '2026-05-08' },
+  { key: 'final',     name: 'Final',                   nameKo: '결승',        start: '2026-05-08', end: '2026-07-01' }
+];
+
+function getCurrentUclRoundKey() {
+  const now = todayKST(); // 'YYYY-MM-DD'
+  for (const r of UCL_ROUNDS) {
+    if (now >= r.start && now < r.end) return r.key;
+  }
+  // 시즌 종료 이후면 마지막 라운드
+  if (todayKST() >= UCL_ROUNDS[UCL_ROUNDS.length - 1].end) return UCL_ROUNDS[UCL_ROUNDS.length - 1].key;
+  return null;
+}
+
+function dateToYYYYMMDD(isoStr) {
+  return isoStr.slice(0, 10).replace(/-/g, '');
+}
+
+function parseUclMatchups(events) {
+  const matchups = [];
+  const seen = new Map();
+
+  const sorted = [...events].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  for (const ev of sorted) {
+    const comp = ev.competitions?.[0];
+    const competitors = comp?.competitors || [];
+    if (competitors.length < 2) continue;
+
+    const home = competitors.find(c => c.homeAway === 'home') || competitors[0];
+    const away = competitors.find(c => c.homeAway === 'away') || competitors[1];
+
+    const homeId = String(home.team?.id || home.team?.displayName || '?');
+    const awayId = String(away.team?.id || away.team?.displayName || '?');
+    const pairKey = [homeId, awayId].sort().join('_');
+
+    const note = comp?.notes?.[0]?.headline || '';
+    const noteLow = note.toLowerCase();
+    const isLeg2 = noteLow.includes('2nd leg');
+    const state = ev.status?.type?.state || 'pre';
+
+    // 미확정 팀: API가 "QF W2" / "SF W1" 같은 placeholder 이름을 줌
+    const isPlaceholder = (name) => /^(QF|SF|R16|PO)\s*W\d+/i.test(name);
+
+    const makeTeam = (c) => ({
+      id: String(c.team?.id || ''),
+      abbr: c.team?.abbreviation || c.team?.shortDisplayName || '?',
+      name: c.team?.shortDisplayName || c.team?.displayName || '?',
+      logo: c.team?.logos?.[0]?.href || c.team?.logo || '',
+      placeholder: isPlaceholder(c.team?.shortDisplayName || c.team?.displayName || '')
+    });
+
+    const venue = comp?.venue || {};
+    const legData = {
+      date: ev.date,
+      state,
+      homeScore: (state === 'in' || state === 'post') ? (home.score ?? '') : '',
+      awayScore: (state === 'in' || state === 'post') ? (away.score ?? '') : '',
+      status: ev.status?.type?.shortDetail || '',
+      note,
+      venue: venue.fullName || '',
+      city: venue.address?.city || ''
+    };
+
+    if (!seen.has(pairKey)) {
+      const mu = {
+        leg1Home: null,
+        leg1Away: null,
+        leg1: null,
+        leg2: null,
+        winner: '',
+        winnerIsLeg1Home: null,
+        aggregate: ''
+      };
+      seen.set(pairKey, mu);
+      matchups.push(mu);
+    }
+
+    const mu = seen.get(pairKey);
+    if (isLeg2) {
+      mu.leg2 = legData;
+      // leg2 홈/원정 팀 저장 (leg1Home이 아직 없으면 leg2 기준으로 채움)
+      if (!mu.leg1Home) {
+        mu.leg1Home = makeTeam(away); // leg2 원정 = leg1 홈
+        mu.leg1Away = makeTeam(home); // leg2 홈 = leg1 원정
+      }
+      // 합산 스코어 추출
+      const aggMatch = note.match(/(\d+[-–]\d+)\s+on aggregate/);
+      if (aggMatch) mu.aggregate = aggMatch[1].replace('–', '-');
+      // 진출 팀 판별: leg2 홈팀 ID 기준
+      // leg2 홈 = leg1 원정(leg1Away) → 진출이면 winnerIsLeg1Home=false
+      // leg2 원정 = leg1 홈(leg1Home) → 진출이면 winnerIsLeg1Home=true
+      if (note.includes('advance')) {
+        const m = note.match(/^(.+?)\s+advance/);
+        if (m) mu.winner = m[1].trim();
+        // leg2 홈팀(home)이 진출했는가 vs 원정팀(away)이 진출했는가
+        // aggregate note 진출팀과 leg2 home 팀 이름 비교
+        const winnerName = (mu.winner || '').toLowerCase();
+        const leg2HomeName = (home.team?.shortDisplayName || home.team?.displayName || '').toLowerCase();
+        const leg2AwayName = (away.team?.shortDisplayName || away.team?.displayName || '').toLowerCase();
+        // leg2 홈이 winner면 → leg1Away가 winner → winnerIsLeg1Home=false
+        // leg2 away가 winner면 → leg1Home이 winner → winnerIsLeg1Home=true
+        const leg2HomeIsWinner = winnerName && (
+          leg2HomeName.includes(winnerName.slice(0, 6)) ||
+          winnerName.includes(leg2HomeName.slice(0, 6))
+        );
+        mu.winnerIsLeg1Home = !leg2HomeIsWinner;
+      } else if (note.includes('lead')) {
+        // 아직 2차전 미종료: "X lead Y-Z on aggregate"
+        // lead 팀이 leg2 홈인지 원정인지 판별
+        const leadMatch = note.match(/^(.+?)\s+lead/);
+        if (leadMatch) {
+          const leadName = leadMatch[1].trim().toLowerCase();
+          const leg2HomeName = (home.team?.shortDisplayName || home.team?.displayName || '').toLowerCase();
+          const leg2HomeIsLeading = leg2HomeName.includes(leadName.slice(0, 6)) ||
+            leadName.includes(leg2HomeName.slice(0, 6));
+          mu.winnerIsLeg1Home = !leg2HomeIsLeading;
+        }
+      }
+    } else {
+      mu.leg1 = legData;
+      // leg1 홈/원정 팀 저장 (아직 없을 때만)
+      if (!mu.leg1Home) {
+        mu.leg1Home = makeTeam(home);
+        mu.leg1Away = makeTeam(away);
+      }
+    }
+  }
+
+  return matchups;
+}
+
+async function fetchUclTournament() {
+  // 전체 시즌 토너먼트 날짜 범위로 조회 (2026-01-30 ~ 2026-07-01)
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard?dates=20260130-20260701`;
+
+  try {
+    const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
+    const allEvents = Array.isArray(response.data?.events) ? response.data.events : [];
+
+    if (!allEvents.length) return null;
+
+    // 라운드별로 이벤트 분류
+    const roundMap = {};
+    for (const r of UCL_ROUNDS) {
+      const evs = allEvents.filter(ev => {
+        const d = ev.date?.slice(0, 10);
+        return d >= r.start && d < r.end;
+      });
+      if (evs.length) {
+        roundMap[r.key] = {
+          key: r.key,
+          name: r.name,
+          nameKo: r.nameKo,
+          matchups: parseUclMatchups(evs)
+        };
+      }
+    }
+
+    const currentKey = getCurrentUclRoundKey();
+
+    return {
+      rounds: roundMap,
+      currentRoundKey: currentKey,
+      roundOrder: UCL_ROUNDS.filter(r => roundMap[r.key]).map(r => r.key)
+    };
+  } catch (err) {
+    console.error('[ucl:tournament] fetch 실패', err.message);
+    return null;
+  }
+}
+
 async function fetchAllGames(sport = 'nba', leagueId = null) {
   if (sport === 'epl') { sport = 'soccer'; leagueId = leagueId || 'eng.1'; }
   const urls = (sport === 'soccer' && leagueId)
@@ -917,6 +1099,161 @@ async function fetchAllGames(sport = 'nba', leagueId = null) {
     }
   }
   return [];
+}
+
+// ── KBO (네이버 스포츠 API) ──
+const KBO_TEAMS = [
+  { code: 'NC',  name: 'NC 다이노스',   shortName: 'NC',  logo: 'https://sports-phinf.pstatic.net/team/kbo/default/NC.png' },
+  { code: 'KT',  name: 'KT 위즈',       shortName: 'KT',  logo: 'https://sports-phinf.pstatic.net/team/kbo/default/KT.png' },
+  { code: 'LG',  name: 'LG 트윈스',     shortName: 'LG',  logo: 'https://sports-phinf.pstatic.net/team/kbo/default/LG.png' },
+  { code: 'LT',  name: '롯데 자이언츠', shortName: '롯데', logo: 'https://sports-phinf.pstatic.net/team/kbo/default/LT.png' },
+  { code: 'SK',  name: 'SSG 랜더스',    shortName: 'SSG', logo: 'https://sports-phinf.pstatic.net/team/kbo/default/SK.png' },
+  { code: 'OB',  name: '두산 베어스',   shortName: '두산', logo: 'https://sports-phinf.pstatic.net/team/kbo/default/OB.png' },
+  { code: 'HH',  name: '한화 이글스',   shortName: '한화', logo: 'https://sports-phinf.pstatic.net/team/kbo/default/HH.png' },
+  { code: 'SS',  name: '삼성 라이온즈', shortName: '삼성', logo: 'https://sports-phinf.pstatic.net/team/kbo/default/SS.png' },
+  { code: 'HT',  name: 'KIA 타이거즈',  shortName: 'KIA', logo: 'https://sports-phinf.pstatic.net/team/kbo/default/HT.png' },
+  { code: 'WO',  name: '키움 히어로즈', shortName: '키움', logo: 'https://sports-phinf.pstatic.net/team/kbo/default/WO.png' }
+];
+
+const KBO_HEADERS = {
+  ...HTTP_HEADERS,
+  'Referer': 'https://sports.naver.com',
+  'Origin': 'https://sports.naver.com'
+};
+
+function kboTeamByCode(code) {
+  return KBO_TEAMS.find(t => t.code === code) || null;
+}
+
+function kboDateStr(date) {
+  // 'YYYYMMDD' 형식 반환
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(date).replace(/-/g, '');
+}
+
+async function fetchKboGames(dateStr = null) {
+  const d = dateStr || kboDateStr(new Date());
+  const url = `https://api-gw.sports.naver.com/schedule/games?fields=basic&gameDate=${d}&categoryId=kbo`;
+  try {
+    const response = await axios.get(url, { timeout: 15000, headers: KBO_HEADERS });
+    const raw = response.data?.result?.games;
+    return Array.isArray(raw) ? raw : [];
+  } catch (err) {
+    console.error('[kbo] fetchKboGames 실패', err.message);
+    return [];
+  }
+}
+
+async function fetchKboTeamStatus(teamCode) {
+  const games = await fetchKboGames();
+  const game = games.find(g => g.homeTeamCode === teamCode || g.awayTeamCode === teamCode);
+  if (!game) return { mode: 'none' };
+
+  const isHome = game.homeTeamCode === teamCode;
+  // reversedHomeAway=true → KBO 홈/원정이 UI상 반대로 표시됨 (실제 홈은 homeTeamCode)
+  const myTeam   = kboTeamByCode(teamCode);
+  const oppCode  = isHome ? game.awayTeamCode : game.homeTeamCode;
+  const oppTeam  = kboTeamByCode(oppCode);
+  const myScore  = isHome ? game.homeTeamScore : game.awayTeamScore;
+  const oppScore = isHome ? game.awayTeamScore : game.homeTeamScore;
+  const myLogo   = isHome ? game.homeTeamEmblemUrl : game.awayTeamEmblemUrl;
+  const oppLogo  = isHome ? game.awayTeamEmblemUrl : game.homeTeamEmblemUrl;
+  const myAbbr   = myTeam?.shortName  || teamCode;
+  const oppAbbr  = oppTeam?.shortName || oppCode;
+
+  // 네이버: BEFORE 외에 READY(출전 대기 등)가 오며, 미처리 시 mode none → "오늘 경기 없음"으로 잘못 표시됨
+  const status = String(game.statusCode || '').trim().toUpperCase();
+  const isCanceled = game.cancel || game.suspended || status === 'CANCEL';
+
+  if (isCanceled) return { mode: 'none', myAbbr, oppAbbr, myLogo, oppLogo };
+
+  if (status === 'BEFORE' || status === 'READY') {
+    return {
+      mode: 'pre',
+      myAbbr, oppAbbr, myLogo, oppLogo,
+      opponentName: oppTeam?.name || oppCode,
+      isHome,
+      startDateISO: game.gameDateTime
+    };
+  }
+  // 네이버 KBO: 진행 중은 statusCode "STARTED" (이닝 등은 statusInfo)
+  if (status === 'LIVE' || status === 'IN_PROGRESS' || status === 'STARTED') {
+    return {
+      mode: 'live',
+      myAbbr, oppAbbr, myLogo, oppLogo,
+      myScore: String(myScore), oppScore: String(oppScore),
+      isHome,
+      period: game.statusInfo || 'LIVE',
+      scoreKey: `${myScore}-${oppScore}`
+    };
+  }
+  if (status === 'RESULT' || status === 'FINAL') {
+    const myWon = myScore > oppScore;
+    const isDraw = myScore === oppScore;
+    return {
+      mode: 'post',
+      myAbbr, oppAbbr, myLogo, oppLogo,
+      myScore: String(myScore), oppScore: String(oppScore),
+      isHome,
+      result: isDraw ? 'D' : (myWon ? 'W' : 'L'),
+      scoreKey: `${myScore}-${oppScore}`
+    };
+  }
+  return { mode: 'none' };
+}
+
+async function fetchKboNextGame(teamCode) {
+  // KST 달력 기준 오늘부터 30일 이내, 아직 끝나지 않은 다음 일정 (종료 경기는 같은 날 스킵)
+  const now = new Date();
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + i);
+    const dateStr = kboDateStr(d);
+    const games = await fetchKboGames(dateStr);
+    const game = games.find(g => (g.homeTeamCode === teamCode || g.awayTeamCode === teamCode) && !g.cancel && !g.suspended);
+    if (!game) continue;
+    const st = String(game.statusCode || '').trim().toUpperCase();
+    if (st === 'RESULT' || st === 'FINAL') continue;
+
+    const isHome = game.homeTeamCode === teamCode;
+    const oppCode = isHome ? game.awayTeamCode : game.homeTeamCode;
+    const oppTeam = kboTeamByCode(oppCode);
+    return {
+      date: game.gameDateTime,
+      isHome,
+      opponent: {
+        name: oppTeam?.name || oppCode,
+        abbreviation: oppTeam?.shortName || oppCode,
+        logo: isHome ? game.awayTeamEmblemUrl : game.homeTeamEmblemUrl
+      }
+    };
+  }
+  return { seasonEnd: true };
+}
+
+async function fetchAllKboGames() {
+  const games = await fetchKboGames();
+  return games
+    .filter(g => !g.cancel && !g.suspended)
+    .map(g => {
+      const homeTeam = kboTeamByCode(g.homeTeamCode);
+      const awayTeam = kboTeamByCode(g.awayTeamCode);
+      const status = g.statusCode;
+      return {
+        gameId: g.gameId,
+        homeAbbr:  homeTeam?.shortName || g.homeTeamName,
+        awayAbbr:  awayTeam?.shortName || g.awayTeamName,
+        homeName:  homeTeam?.name || g.homeTeamName,
+        awayName:  awayTeam?.name || g.awayTeamName,
+        homeLogo:  g.homeTeamEmblemUrl,
+        awayLogo:  g.awayTeamEmblemUrl,
+        homeScore: g.homeTeamScore,
+        awayScore: g.awayTeamScore,
+        status,         // BEFORE / READY / STARTED / RESULT / FINAL …
+        statusInfo: g.statusInfo,
+        startTime: g.gameDateTime
+      };
+    });
 }
 
 app.whenReady().then(() => {
@@ -952,6 +1289,26 @@ app.whenReady().then(() => {
 
   ipcMain.handle('standings:fetchEpl', async () => {
     return fetchSoccerStandings('eng.1');
+  });
+
+  ipcMain.handle('ucl:fetchTournament', async () => {
+    return fetchUclTournament();
+  });
+
+  ipcMain.handle('kbo:fetchTeamStatus', async (_, teamCode) => {
+    return fetchKboTeamStatus(teamCode);
+  });
+
+  ipcMain.handle('kbo:fetchNextGame', async (_, teamCode) => {
+    return fetchKboNextGame(teamCode);
+  });
+
+  ipcMain.handle('kbo:fetchAllGames', async () => {
+    return fetchAllKboGames();
+  });
+
+  ipcMain.handle('kbo:getTeams', async () => {
+    return KBO_TEAMS;
   });
 
   ipcMain.handle('ga4:track', async (_evt, payload) => {

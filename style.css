@@ -347,6 +347,28 @@ h1 {
   -webkit-overflow-scrolling: touch;
 }
 
+/* 야구(MLB/KBO): 서브탭 고정, 팀 목록만 세로 스크롤 — 축구와 동일 flex 패턴 */
+#baseball-setup-section:not(.hidden) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  gap: 4px;
+}
+
+#baseball-setup-section:not(.hidden) .soccer-league-subtabs {
+  flex-shrink: 0;
+}
+
+#baseball-setup-section:not(.hidden) .team-checkbox-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 .settings-teams-footer {
   flex-shrink: 0;
   padding: 10px 0 8px;
@@ -1022,6 +1044,14 @@ h1 {
   color: #9eb0ca;
 }
 
+/* ── 경기장 표시 ── */
+.card-venue {
+  font-size: 9px;
+  color: #4a5e76;
+  margin-top: 3px;
+  letter-spacing: 0.01em;
+}
+
 /* ── MLB 투수 정보 ── */
 .card-pitcher {
   margin-top: 5px;
@@ -1376,6 +1406,206 @@ h1 {
   font-weight: 600;
 }
 
+/* ── UCL 토너먼트 대진표 ── */
+.ucl-bracket {
+  width: 100%;
+  padding: 2px 0;
+}
+
+/* 라운드 네비게이션 */
+.ucl-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 4px;
+}
+.ucl-nav-current {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a8c8f8;
+  letter-spacing: 0.06em;
+  text-align: center;
+  flex: 1;
+}
+.ucl-nav-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 5px;
+  color: #8aa8c8;
+  font-size: 9px;
+  padding: 3px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: 60px;
+  transition: background 0.15s;
+}
+.ucl-nav-btn--right {
+  text-align: right;
+}
+.ucl-nav-btn:hover:not(.disabled) {
+  background: rgba(255,255,255,0.13);
+  color: #c0d8f0;
+}
+.ucl-nav-btn.disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 매치업 목록 */
+.ucl-matchups {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* 개별 매치업 카드 */
+.ucl-matchup {
+  background: rgba(255,255,255,0.04);
+  border-radius: 7px;
+  padding: 7px 9px 6px;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.ucl-matchup--decided {
+  border-color: rgba(255,255,255,0.04);
+}
+
+/* 팀 행 (좌 팀 | 중앙 합산 | 우 팀) */
+.ucl-matchup-teams {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.ucl-team {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.ucl-team--right {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.ucl-team--winner .ucl-team-name { color: #e8f0ff; font-weight: 700; }
+.ucl-team--eliminated .ucl-team-name { color: #48586a; }
+.ucl-team--eliminated .ucl-team-logo { opacity: 0.35; }
+.ucl-team--eliminated .ucl-team-logo-fb { opacity: 0.35; }
+.ucl-team-logo {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.ucl-team-logo-fb {
+  font-size: 8px;
+  color: #7a8fa8;
+  width: 17px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ucl-team-logo-ph {
+  font-size: 11px;
+  color: #3a4a5a;
+  width: 17px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ucl-team-name {
+  font-size: 10px;
+  color: #b8c8de;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.ucl-team-name--ph {
+  color: #3a4a5a;
+  font-style: italic;
+}
+.ucl-winner-mark {
+  font-size: 9px;
+  color: #5b9cf6;
+  flex-shrink: 0;
+}
+
+/* 중앙 합산 스코어 */
+.ucl-matchup-center {
+  text-align: center;
+  flex-shrink: 0;
+  min-width: 36px;
+}
+.ucl-agg {
+  font-size: 12px;
+  font-weight: 700;
+  color: #a8c8f8;
+}
+.ucl-vs-text {
+  font-size: 9px;
+  color: #3a4a5a;
+}
+
+/* 레그 행 (1차전/2차전) */
+.ucl-legs-wrap {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 5px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 24px;
+}
+.ucl-leg-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 80px;
+}
+.ucl-leg-col-num {
+  font-size: 8px;
+  color: #3a4a5e;
+  white-space: nowrap;
+  margin-bottom: 1px;
+}
+.ucl-leg-col-score {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c0d0e8;
+  letter-spacing: 0.04em;
+}
+.ucl-leg-col-score--pre {
+  color: #3a4a5e;
+  font-weight: 400;
+}
+.ucl-leg-col-status {
+  font-size: 9px;
+  color: #5a6a80;
+  white-space: nowrap;
+  text-align: center;
+}
+.ucl-leg-col-status.live { color: #f06060; }
+.ucl-live-dot { color: #f06060; font-size: 7px; }
+.ucl-leg-col-venue {
+  font-size: 8px;
+  color: #3a4a5e;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+.ucl-final-venue {
+  text-align: center;
+  font-size: 10px;
+  color: #a8c8f8;
+  background: rgba(91, 156, 246, 0.08);
+  border: 1px solid rgba(91, 156, 246, 0.18);
+  border-radius: 5px;
+  padding: 5px 10px;
+  margin-bottom: 8px;
+}
+
 /* ── EPL 행 클릭 인터랙션 ── */
 .epl-rank-table tbody tr[data-team-id] {
   cursor: pointer;
@@ -1483,6 +1713,7 @@ h1 {
 /* ── 축구 리그 서브탭 (공용) ── */
 .soccer-standings-subtabs,
 .soccer-games-subtabs,
+.baseball-games-subtabs,
 .soccer-league-subtabs {
   display: flex;
   gap: 3px;
@@ -1492,11 +1723,14 @@ h1 {
 }
 .soccer-standings-subtabs.hidden,
 .soccer-games-subtabs.hidden,
+.baseball-games-subtabs.hidden,
 .soccer-league-subtabs.hidden { display: none !important; }
 
 .soccer-std-tab,
 .soccer-games-tab,
-.soccer-setup-tab {
+.soccer-setup-tab,
+.baseball-games-tab,
+.baseball-setup-tab {
   flex: 1;
   min-width: 0;
   height: 18px;
@@ -1514,14 +1748,18 @@ h1 {
 }
 .soccer-std-tab.active,
 .soccer-games-tab.active,
-.soccer-setup-tab.active {
+.soccer-setup-tab.active,
+.baseball-games-tab.active,
+.baseball-setup-tab.active {
   background: rgba(40, 180, 100, 0.22);
   color: #d0f0e0;
   border-color: rgba(40, 180, 100, 0.35);
 }
 .soccer-std-tab:hover:not(.active),
 .soccer-games-tab:hover:not(.active),
-.soccer-setup-tab:hover:not(.active) {
+.soccer-setup-tab:hover:not(.active),
+.baseball-games-tab:hover:not(.active),
+.baseball-setup-tab:hover:not(.active) {
   background: rgba(255, 255, 255, 0.08);
   color: #b8cde4;
 }
@@ -2043,7 +2281,8 @@ body.coder-mode .coder-card .score-flash {
 body.coder-mode .all-games-section,
 body.coder-mode .all-games-toggle,
 body.coder-mode .games-filter-tabs,
-body.coder-mode .soccer-games-subtabs {
+body.coder-mode .soccer-games-subtabs,
+body.coder-mode .baseball-games-subtabs {
   border-color: rgba(255, 255, 255, 0.08);
 }
 

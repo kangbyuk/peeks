@@ -105,7 +105,7 @@
           <div class="settings-teams-toolbar">
             <div class="sport-tabs">
               <button class="sport-tab active" data-sport="nba">🏀 NBA</button>
-              <button class="sport-tab" data-sport="mlb">⚾ MLB</button>
+              <button class="sport-tab" data-sport="baseball">⚾ 야구</button>
               <button class="sport-tab" data-sport="soccer">⚽ Soccer</button>
             </div>
             <div class="team-search-wrap">
@@ -116,7 +116,15 @@
           </div>
           <div class="settings-teams-scroll">
             <div id="nba-checkbox-list" class="team-checkbox-list sport-list"></div>
-            <div id="mlb-checkbox-list" class="team-checkbox-list sport-list hidden"></div>
+            <!-- 야구: MLB / KBO 서브탭 -->
+            <div id="baseball-setup-section" class="sport-list hidden">
+              <div class="soccer-league-subtabs" id="baseball-setup-tabs">
+                <button type="button" class="baseball-setup-tab active" data-baseball-setup="mlb">MLB</button>
+                <button type="button" class="baseball-setup-tab" data-baseball-setup="kbo">KBO</button>
+              </div>
+              <div id="mlb-checkbox-list" class="team-checkbox-list sport-list hidden"></div>
+              <div id="kbo-checkbox-list" class="team-checkbox-list sport-list hidden"></div>
+            </div>
             <!-- Soccer: 리그별 서브탭 + 팀 목록 (목록만 세로 스크롤) -->
             <div id="soccer-setup-section" class="sport-list hidden">
               <div class="soccer-league-subtabs" id="soccer-setup-tabs">
@@ -154,9 +162,14 @@
             </button>
             <div class="games-filter-tabs" id="games-filter-tabs">
               <button class="games-filter-btn active" data-games-sport="nba">🏀</button>
-              <button class="games-filter-btn" data-games-sport="mlb">⚾</button>
+              <button class="games-filter-btn" data-games-sport="baseball">⚾</button>
               <button class="games-filter-btn" data-games-sport="soccer">⚽</button>
             </div>
+          </div>
+          <!-- 야구 MLB/KBO 서브탭 (⚾ 선택 시 표시) -->
+          <div id="baseball-games-subtabs" class="baseball-games-subtabs soccer-games-subtabs hidden">
+            <button type="button" class="baseball-games-tab active" data-baseball-games="mlb">MLB</button>
+            <button type="button" class="baseball-games-tab" data-baseball-games="kbo">KBO</button>
           </div>
           <!-- Soccer 리그 서브탭 (⚽ 선택 시 항상 표시 — 데이터 유무와 무관) -->
           <div id="soccer-games-subtabs" class="soccer-games-subtabs hidden">

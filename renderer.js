@@ -6,7 +6,7 @@ const SCORE_IDLE_REFRESH_MS = 30 * 60 * 1000;
 const SCORE_LIVE_PEEK_MS = 2 * 60 * 1000;
 const SCORE_IDLE_PEEK_MS = 45 * 60 * 1000;
 const CARD_ACCENTS = ['#4d8cff', '#9c6ddf', '#2ec882', '#ff8040', '#ffc43d', '#df6e6e'];
-const SPORT_EMOJI = { nba: '🏀', mlb: '⚾', soccer: '⚽' };
+const SPORT_EMOJI = { nba: '🏀', mlb: '⚾', kbo: '🔴', soccer: '⚽' };
 
 // ── 축구 리그 메타 (main.js의 SOCCER_LEAGUES와 동기화) ──
 const SOCCER_LEAGUES = {
@@ -262,6 +262,9 @@ function findCheckboxForFavoriteEntry(entry) {
   if (sport === 'mlb') {
     return mlbCheckboxListEl?.querySelector(`input[type="checkbox"][value="${esc}"]`);
   }
+  if (sport === 'kbo') {
+    return kboCheckboxListEl?.querySelector(`input[type="checkbox"][value="${esc}"]`);
+  }
   if (sport === 'soccer') {
     const lid = leagueId || 'eng.1';
     const le = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(lid) : lid;
@@ -282,8 +285,11 @@ const updatedAtEl = document.getElementById('updated-at');
 const favoriteSetupEl = document.getElementById('favorite-setup');
 const nbaCheckboxListEl    = document.getElementById('nba-checkbox-list');
 const mlbCheckboxListEl    = document.getElementById('mlb-checkbox-list');
+const kboCheckboxListEl    = document.getElementById('kbo-checkbox-list');
 const soccerCheckboxListEl = document.getElementById('soccer-checkbox-list');
 const soccerSetupSection   = document.getElementById('soccer-setup-section');
+const baseballSetupSectionEl = document.getElementById('baseball-setup-section');
+const baseballGamesSubtabsEl = document.getElementById('baseball-games-subtabs');
 const saveFavoriteBtn = document.getElementById('save-favorite-btn');
 const homeBtn = document.getElementById('home-btn');
 const settingsBtn = document.getElementById('settings-btn');
@@ -422,9 +428,13 @@ let coderMode   = localStorage.getItem(PEEKS_CODER_KEY) === 'true';
 let coderFormat = localStorage.getItem(PEEKS_CODER_FORMAT_KEY) === 'code' ? 'code' : 'log';
 
 // ── All Games 상태 ──
-let allGamesCache     = { nba: null, mlb: null };  // soccer는 leagueId별로 캐시
+let allGamesCache     = { nba: null, mlb: null, kbo: null };  // soccer는 leagueId별로 캐시
 let soccerGamesCache  = {};   // { 'eng.1': [...], ... }
-let activeGamesSport  = 'nba';
+let activeGamesSport  = 'nba'; // 'nba' | 'baseball' | 'soccer'
+/** 야구 서브: 팀 설정(MLB/KBO) */
+let activeBaseballSetupLeague = 'mlb';
+/** 야구 서브: 오늘 경기(MLB/KBO) */
+let activeBaseballGamesLeague = 'mlb';
 let allGamesOpen      = true;
 let scoreboardTimer = null;
 let mainWinPeekMinimized = false;
@@ -484,15 +494,34 @@ function syncStealthControls() {
 }
 
 // ── 종목 탭 전환 ──
+function activateBaseballSetupTab(which) {
+  const w = which === 'kbo' ? 'kbo' : 'mlb';
+  activeBaseballSetupLeague = w;
+  document.querySelectorAll('.baseball-setup-tab').forEach((b) => {
+    b.classList.toggle('active', b.dataset.baseballSetup === w);
+  });
+  if (baseballSetupSectionEl && !baseballSetupSectionEl.classList.contains('hidden')) {
+    mlbCheckboxListEl.classList.toggle('hidden', w !== 'mlb');
+    kboCheckboxListEl.classList.toggle('hidden', w !== 'kbo');
+  }
+  if (w === 'mlb' && !mlbTeams.length) loadMlbStandings();
+  if (w === 'kbo') fillKboCheckboxList();
+}
+
 function activateSportTab(sport) {
   activeSetupSport = sport;
   document.querySelectorAll('.sport-tab').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.sport === sport);
   });
   nbaCheckboxListEl.classList.toggle('hidden', sport !== 'nba');
-  mlbCheckboxListEl.classList.toggle('hidden', sport !== 'mlb');
+  baseballSetupSectionEl?.classList.toggle('hidden', sport !== 'baseball');
   soccerSetupSection.classList.toggle('hidden', sport !== 'soccer');
-  if (sport === 'mlb' && !mlbTeams.length) loadMlbStandings();
+  if (sport === 'baseball') {
+    activateBaseballSetupTab(activeBaseballSetupLeague);
+  } else {
+    mlbCheckboxListEl.classList.add('hidden');
+    kboCheckboxListEl.classList.add('hidden');
+  }
   if (sport === 'soccer') {
     if (!DOMESTIC_SOCCER_LEAGUE_IDS.includes(activeSoccerLeague)) {
       activeSoccerLeague = 'eng.1';
@@ -542,6 +571,30 @@ function fillCheckboxList(teams, sport) {
   });
 }
 
+// ── KBO 팀 체크박스 렌더링 ──
+let kboTeamsMeta = []; // main.js에서 받은 KBO 팀 목록
+
+async function fillKboCheckboxList() {
+  if (!kboCheckboxListEl) return;
+  if (!kboTeamsMeta.length) {
+    kboTeamsMeta = await window.standingsAPI.kboGetTeams();
+  }
+  const savedCodes = favoriteTeams.filter((ft) => ft.sport === 'kbo').map((ft) => ft.teamId);
+  kboCheckboxListEl.innerHTML = kboTeamsMeta.map((t) => {
+    const checked = savedCodes.includes(t.code);
+    return `<label class="team-checkbox-item${checked ? ' checked' : ''}">
+      <input type="checkbox" value="${t.code}" data-sport="kbo" ${checked ? 'checked' : ''} />
+      <img class="team-checkbox-logo" src="${t.logo}" alt="" onerror="this.style.display='none'" style="width:14px;height:14px;object-fit:contain;margin-right:4px;">
+      ${escapeHtmlText(t.name)}
+    </label>`;
+  }).join('');
+  kboCheckboxListEl.querySelectorAll('.team-checkbox-item').forEach((label) => {
+    label.querySelector('input').addEventListener('change', (e) => {
+      label.classList.toggle('checked', e.target.checked);
+    });
+  });
+}
+
 // ── 축구 팀 체크박스 렌더링 ──
 function fillSoccerCheckboxList(teams, leagueId) {
   const savedIds = favoriteTeams
@@ -568,6 +621,11 @@ function fillSoccerCheckboxList(teams, leagueId) {
 
 // ── 팀 찾기 ──
 function findTeam(teamId, sport, leagueId = null) {
+  if (sport === 'kbo') {
+    const kboT = kboTeamsMeta.find((t) => t.code === teamId);
+    if (!kboT) return null;
+    return { teamId: kboT.code, team: kboT.name, abbr: kboT.shortName, logo: kboT.logo, w: '-', l: '-', rank: null };
+  }
   if (sport === 'soccer' || sport === 'epl') {
     const lid = leagueId || 'eng.1';
     if (lid === 'uefa.champions') {
@@ -800,6 +858,10 @@ function soccerCardBodyHTML(status) {
     : (status.period || '').toLowerCase().includes('ht') || (status.period || '').includes('halftime') ? 'ht'
     : '';
 
+  const soccerVenueHtml = (status.venueCity || status.venue)
+    ? `<div class="card-venue">🏟 ${escapeHtmlText(status.venueCity || status.venue)}</div>`
+    : '';
+
   if (status.mode === 'live' || status.mode === 'post') {
     const label = status.mode === 'post' ? 'FT' : status.period || 'LIVE';
     return `
@@ -811,6 +873,7 @@ function soccerCardBodyHTML(status) {
         <div class="card-soccer-center">
           <span class="card-soccer-score">${status.myScore} – ${status.oppScore}</span>
           <span class="card-soccer-status ${statusCls}">${escapeHtmlText(label)}</span>
+          ${soccerVenueHtml}
         </div>
         <div class="card-soccer-team">
           <img class="card-soccer-logo" src="${status.oppLogo || ''}" alt="" onerror="this.style.display='none'" />
@@ -830,6 +893,7 @@ function soccerCardBodyHTML(status) {
         <div class="card-soccer-center">
           <span class="card-soccer-score" style="font-size:11px;letter-spacing:0">${prefix} ${status.oppAbbr}</span>
           <span class="card-soccer-status">${timeOnly}</span>
+          ${soccerVenueHtml}
         </div>
         <div class="card-soccer-team">
           <img class="card-soccer-logo" src="${status.oppLogo || ''}" alt="" onerror="this.style.display='none'" />
@@ -878,6 +942,10 @@ function cardBodyHTML(status, sport = 'nba') {
     if (status.mode === 'error' || status.mode === 'unknown') {
       return `<div class="card-no-game">${escapeHtmlText(t('card.checking'))}</div>`;
     }
+    const venueHtml = (status.venueCity || status.venue)
+      ? `<div class="card-venue">🏟 ${escapeHtmlText(status.venueCity || status.venue)}</div>`
+      : '';
+
     if (status.mode === 'live') {
       return `
         <div class="card-score-header">
@@ -889,6 +957,7 @@ function cardBodyHTML(status, sport = 'nba') {
           <span class="card-score-big">${status.myScore ?? '0'} – ${status.oppScore ?? '0'}</span>
           <span class="card-abbr opp">${status.oppAbbr || ''}</span>
         </div>
+        ${venueHtml}
         ${sport === 'mlb' ? pitcherHTML(status.pitcher, 'live') : ''}`;
     }
     if (status.mode === 'post') {
@@ -900,6 +969,7 @@ function cardBodyHTML(status, sport = 'nba') {
           <span class="card-score-big">${status.myScore ?? '0'} – ${status.oppScore ?? '0'}</span>
           <span class="card-abbr opp">${status.oppAbbr || ''}</span>
         </div>
+        ${venueHtml}
         ${sport === 'mlb' ? pitcherHTML(status.pitcher, 'post') : ''}`;
     }
     if (status.mode === 'pre') {
@@ -908,6 +978,7 @@ function cardBodyHTML(status, sport = 'nba') {
       return `
         <div class="card-no-game">${escapeHtmlText(t('card.gameScheduled'))}</div>
         <div class="card-pre-detail">${prefix} ${status.oppAbbr || ''} · ${escapeHtmlText(timeStr)}</div>
+        ${venueHtml}
         ${sport === 'mlb' ? pitcherHTML(status.pitcher, 'pre') : ''}`;
     }
     return `<div class="card-no-game">${escapeHtmlText(t('card.checking'))}</div>`;
@@ -1038,13 +1109,15 @@ function renderTeamCards() {
       }
       const abbr = team?.abbr || teamName.slice(0, 3).toUpperCase();
       const isSoccer = (sport === 'soccer' || sport === 'epl');
-      const rank = formatRankLabel(team, sport);
+      const isKbo = sport === 'kbo';
+      const rank = isKbo ? '' : formatRankLabel(team, sport);
       const record = isSoccer
         ? (team ? `${team.w}W ${team.d ?? '-'}D ${team.l}L` : '-')
+        : isKbo ? ''
         : (team ? `${team.w}-${team.l}` : '-');
       const logoHtml = team?.logo
         ? `<img class="card-team-logo" src="${team.logo}" alt="" onerror="this.style.display='none'" />`
-        : `<span class="card-sport-emoji">${SPORT_EMOJI[sport] || ''}</span>`;
+        : `<span class="card-sport-emoji">${SPORT_EMOJI[sport] || '🔴'}</span>`;
 
       let bodyInner = '';
       try {
@@ -1172,11 +1245,32 @@ function prefetchAllSoccerGamesCaches() {
   });
 }
 
-/** ALL GAMES: 축구 선택 + 펼침일 때 리그 탭 항상 표시 (경기 유무·로딩과 무관) */
+/** ALL GAMES: 축구/야구 서브탭 표시 (펼침 + 해당 종목 선택 시) */
 function syncSoccerGamesSubtabsVisibility() {
-  if (!soccerGamesSubtabsEl) return;
-  const show = allGamesOpen && activeGamesSport === 'soccer';
-  soccerGamesSubtabsEl.classList.toggle('hidden', !show);
+  if (soccerGamesSubtabsEl) {
+    const show = allGamesOpen && activeGamesSport === 'soccer';
+    soccerGamesSubtabsEl.classList.toggle('hidden', !show);
+  }
+  if (baseballGamesSubtabsEl) {
+    const showB = allGamesOpen && activeGamesSport === 'baseball';
+    baseballGamesSubtabsEl.classList.toggle('hidden', !showB);
+  }
+}
+
+function prefetchAllBaseballGamesCaches() {
+  ['mlb', 'kbo'].forEach((s) => {
+    if (allGamesCache[s] == null) loadAllGames(s);
+  });
+}
+
+function allGamesLoadShouldRenderAfterFetch(sport, leagueId) {
+  if (!allGamesOpen) return false;
+  if (activeGamesSport === 'soccer') {
+    const lid = leagueId || activeSoccerGamesLeague;
+    return sport === 'soccer' && lid === activeSoccerGamesLeague;
+  }
+  if (activeGamesSport === 'baseball') return sport === activeBaseballGamesLeague;
+  return sport === activeGamesSport;
 }
 
 /** 선택한 종목/리그 기준 빈 일정 문구 */
@@ -1187,7 +1281,11 @@ function allGamesEmptyMessage() {
     return t('allGames.emptySoccer', { league: name });
   }
   if (activeGamesSport === 'nba') return t('allGames.emptyNba');
-  if (activeGamesSport === 'mlb') return t('allGames.emptyMlb');
+  if (activeGamesSport === 'baseball') {
+    return activeBaseballGamesLeague === 'kbo'
+      ? '오늘 KBO 경기가 없습니다.'
+      : t('allGames.emptyMlb');
+  }
   return t('allGames.emptyGeneric');
 }
 
@@ -1199,8 +1297,49 @@ function allGamesLoadingMessage() {
     return t('allGames.loadingSoccer', { league: name });
   }
   if (activeGamesSport === 'nba') return t('allGames.loadingNba');
-  if (activeGamesSport === 'mlb') return t('allGames.loadingMlb');
+  if (activeGamesSport === 'baseball') {
+    return activeBaseballGamesLeague === 'kbo'
+      ? 'KBO 경기 불러오는 중...'
+      : t('allGames.loadingMlb');
+  }
   return t('allGames.loadingGeneric');
+}
+
+// ── KBO 경기 행 렌더링 ──
+function kboGameRowHTML(g) {
+  const statusMap = {
+    BEFORE: 'pre', READY: 'pre', LIVE: 'live', STARTED: 'live', IN_PROGRESS: 'live',
+    RESULT: 'post', FINAL: 'post', CANCEL: 'cancel'
+  };
+  const state = statusMap[g.status] || 'pre';
+  const statusCls = state === 'live' ? 'gr-status--live' : state === 'post' ? 'gr-status--final' : '';
+
+  let statusText;
+  if (state === 'live') statusText = g.statusInfo || 'LIVE';
+  else if (state === 'post') statusText = 'FT';
+  else if (state === 'cancel') statusText = '취소';
+  else {
+    try {
+      statusText = new Intl.DateTimeFormat('ko-KR', {
+        timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit', hour12: true
+      }).format(new Date(g.startTime));
+    } catch { statusText = '18:30'; }
+  }
+
+  const isHomeFav = favoriteTeams.some((ft) => ft.sport === 'kbo' && ft.teamId === g.homeTeamCode);
+  const isAwayFav = favoriteTeams.some((ft) => ft.sport === 'kbo' && ft.teamId === g.awayTeamCode);
+
+  const center = (state === 'live' || state === 'post')
+    ? `<span class="gr-score">${g.awayScore}</span><span class="gr-vs">–</span><span class="gr-score">${g.homeScore}</span>`
+    : `<span class="gr-abbr">${escapeHtmlText(g.awayAbbr)}</span><span class="gr-vs">@</span><span class="gr-abbr">${escapeHtmlText(g.homeAbbr)}</span>`;
+
+  // MLB·NBA와 동일: span + 투명 배경 (button 쓰면 OS 기본 흰 박스가 생김)
+  return `<div class="game-row">
+    <span class="gr-status ${statusCls}">${escapeHtmlText(String(statusText))}</span>
+    ${teamBtn(g.awayTeamCode, 'kbo', g.awayLogo, isAwayFav)}
+    <div class="gr-center">${center}</div>
+    ${teamBtn(g.homeTeamCode, 'kbo', g.homeLogo, isHomeFav)}
+  </div>`;
 }
 
 // ── 전체 경기 렌더링 ──
@@ -1208,6 +1347,8 @@ function renderAllGames() {
   let games;
   if (activeGamesSport === 'soccer') {
     games = soccerGamesCache[activeSoccerGamesLeague];
+  } else if (activeGamesSport === 'baseball') {
+    games = allGamesCache[activeBaseballGamesLeague];
   } else {
     games = allGamesCache[activeGamesSport];
   }
@@ -1221,7 +1362,13 @@ function renderAllGames() {
     syncSoccerGamesSubtabsVisibility();
     return;
   }
-  if (coderMode) {
+  if (activeGamesSport === 'baseball' && activeBaseballGamesLeague === 'kbo') {
+    allGamesListEl.innerHTML = games.map((g) => kboGameRowHTML(g)).join('');
+  } else if (activeGamesSport === 'baseball' && coderMode) {
+    allGamesListEl.innerHTML = games.map((g) => gameRowCoderHTML(g, 'mlb')).join('');
+  } else if (activeGamesSport === 'baseball') {
+    allGamesListEl.innerHTML = games.map((g) => gameRowHTML(g, 'mlb')).join('');
+  } else if (coderMode) {
     allGamesListEl.innerHTML = games.map((g) => gameRowCoderHTML(g, activeGamesSport)).join('');
   } else {
     allGamesListEl.innerHTML = games.map((g) => gameRowHTML(g, activeGamesSport)).join('');
@@ -1230,22 +1377,30 @@ function renderAllGames() {
 }
 
 // ── 전체 경기 데이터 로드 ──
-async function loadAllGames(sport = activeGamesSport, leagueId = null) {
+async function loadAllGames(
+  sport = (activeGamesSport === 'baseball' ? activeBaseballGamesLeague : activeGamesSport),
+  leagueId = null
+) {
   const lid = sport === 'soccer' ? (leagueId || activeSoccerGamesLeague) : null;
   try {
-    const games = await window.standingsAPI.fetchAllGames(sport, lid);
+    let games;
+    if (sport === 'kbo') {
+      games = await window.standingsAPI.kboFetchAllGames();
+    } else {
+      games = await window.standingsAPI.fetchAllGames(sport, lid);
+    }
     if (sport === 'soccer') {
       soccerGamesCache[lid] = games || [];
     } else {
       allGamesCache[sport] = games || [];
     }
-    if (sport === activeGamesSport && allGamesOpen) renderAllGames();
+    if (allGamesLoadShouldRenderAfterFetch(sport, lid) && allGamesOpen) renderAllGames();
     else syncSoccerGamesSubtabsVisibility();
   } catch (err) {
     console.error(`[allgames:${sport}:${lid}] 로딩 실패`, err);
     if (sport === 'soccer') soccerGamesCache[lid] = [];
     else allGamesCache[sport] = [];
-    if (sport === activeGamesSport && allGamesOpen) renderAllGames();
+    if (allGamesLoadShouldRenderAfterFetch(sport, lid) && allGamesOpen) renderAllGames();
     else syncSoccerGamesSubtabsVisibility();
   }
 }
@@ -1494,9 +1649,12 @@ async function loadNextGame() {
   if (!favoriteTeams.length) return;
 
   const results = await Promise.all(
-    favoriteTeams.map(({ teamId, sport, leagueId }) =>
-      window.standingsAPI.fetchNextGame(teamId, sport, leagueId || null).then((r) => ({ teamId, sport, result: r }))
-    )
+    favoriteTeams.map(({ teamId, sport, leagueId }) => {
+      if (sport === 'kbo') {
+        return window.standingsAPI.kboFetchNextGame(teamId).then((r) => ({ teamId, sport, result: r }));
+      }
+      return window.standingsAPI.fetchNextGame(teamId, sport, leagueId || null).then((r) => ({ teamId, sport, result: r }));
+    })
   );
 
   results.forEach(({ teamId, sport, result }) => {
@@ -1519,9 +1677,10 @@ async function loadTeamGameStatus() {
   let settled;
   try {
     settled = await Promise.allSettled(
-      favoriteTeams.map(({ teamId, sport, leagueId }) =>
-        window.standingsAPI.fetchScoreboardByTeam(teamId, sport, leagueId || null)
-      )
+      favoriteTeams.map(({ teamId, sport, leagueId }) => {
+        if (sport === 'kbo') return window.standingsAPI.kboFetchTeamStatus(teamId);
+        return window.standingsAPI.fetchScoreboardByTeam(teamId, sport, leagueId || null);
+      })
     );
   } catch (err) {
     console.error('[loadTeamGameStatus] IPC 오류:', err);
@@ -1615,9 +1774,16 @@ function activateStandingsTab(sport) {
 // ── 축구 순위 리그 서브탭 전환 ──
 function activateSoccerStandingsTab(leagueId) {
   activeSoccerLeague = leagueId;
-  document.querySelectorAll('.soccer-std-tab').forEach((btn) => {
+  soccerStandingsSubtabsEl.querySelectorAll('.soccer-std-tab').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.league === leagueId);
   });
+
+  // UCL: 토너먼트 단계이면 대진표 표시
+  if (leagueId === 'uefa.champions') {
+    loadUclTournamentOrStandings();
+    return;
+  }
+
   // 항상 테이블 초기화 → 이전 리그 잔상 방지
   if (soccerStdBodyEl) soccerStdBodyEl.innerHTML = loadingRow(t('allGames.loadingGeneric')).repeat(5);
   attachSoccerTableEvents();  // 한 번만 바인딩 (이후 호출은 no-op)
@@ -1626,6 +1792,210 @@ function activateSoccerStandingsTab(leagueId) {
     if (teams.length && soccerStdBodyEl) renderRows(soccerStdBodyEl, teams, 'soccer');
   } else {
     loadSoccerStandingsForTable(leagueId);
+  }
+}
+
+// ── UCL: 토너먼트 대진표 또는 리그 페이즈 순위 ──
+// ── UCL 토너먼트 상태 ──
+let uclTournamentData = null;
+let uclViewRoundKey = null; // 현재 페이지네이션으로 보고 있는 라운드
+
+async function loadUclTournamentOrStandings() {
+  const wrap = document.querySelector('.epl-standings-wrap');
+  if (wrap) wrap.innerHTML = `<div style="color:#7a8fa8;font-size:10px;padding:8px 4px">UCL 불러오는 중...</div>`;
+
+  try {
+    const data = await window.standingsAPI.fetchUclTournament();
+    if (data && data.roundOrder && data.roundOrder.length) {
+      uclTournamentData = data;
+      uclViewRoundKey = data.currentRoundKey || data.roundOrder[data.roundOrder.length - 1];
+      renderUclBracket(wrap);
+      return;
+    }
+  } catch (e) {
+    console.error('[UCL] tournament fetch 실패', e);
+  }
+
+  // 토너먼트 데이터 없으면 리그 페이즈 순위표 폴백
+  if (wrap) wrap.innerHTML = '';
+  if (soccerStdBodyEl) soccerStdBodyEl.innerHTML = loadingRow(t('allGames.loadingGeneric')).repeat(5);
+  attachSoccerTableEvents();
+  loadSoccerStandingsForTable('uefa.champions');
+}
+
+function uclFormatLegDate(isoStr) {
+  try {
+    return new Intl.DateTimeFormat(peeksLang === 'ko' ? 'ko-KR' : 'en-US', {
+      timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    }).format(new Date(isoStr));
+  } catch { return ''; }
+}
+
+function renderUclMatchupCard(mu) {
+  const isDecided = !!mu.winner;
+  const leg1 = mu.leg1;
+  const leg2 = mu.leg2;
+
+  // 팀 정보: leg1 기준 home/away
+  const teamA = mu.leg1Home;
+  const teamB = mu.leg1Away;
+
+  const aIsWinner = isDecided && mu.winnerIsLeg1Home === true;
+  const bIsWinner = isDecided && mu.winnerIsLeg1Home === false;
+
+  const teamLogoHtml = (t) => {
+    if (t.placeholder) return `<span class="ucl-team-logo-ph">?</span>`;
+    return t.logo
+      ? `<img class="ucl-team-logo" src="${t.logo}" alt="" onerror="this.style.display='none'">`
+      : `<span class="ucl-team-logo-fb">${escapeHtmlText((t.abbr||t.name).slice(0,3).toUpperCase())}</span>`;
+  };
+
+  const teamHtml = (team, isWinner, isLoser, side) => {
+    const winMark = isWinner ? '<span class="ucl-winner-mark">✓</span>' : '';
+    const cls = isWinner ? 'ucl-team--winner' : (isLoser ? 'ucl-team--eliminated' : '');
+    const nameDisplay = team.placeholder
+      ? `<span class="ucl-team-name ucl-team-name--ph">${escapeHtmlText(team.name)}</span>`
+      : `<span class="ucl-team-name">${escapeHtmlText(team.name)}</span>`;
+    if (side === 'right') {
+      return `<div class="ucl-team ucl-team--right ${cls}">${winMark}${nameDisplay}${teamLogoHtml(team)}</div>`;
+    }
+    return `<div class="ucl-team ${cls}">${teamLogoHtml(team)}${nameDisplay}${winMark}</div>`;
+  };
+
+  // 합산 스코어: API는 항상 "리딩팀 스코어 – 상대 스코어" 순
+  // teamA(왼쪽)가 리딩팀(winnerIsLeg1Home=true)이면 그대로,
+  // teamB(오른쪽)가 리딩팀이면 좌우 반전
+  let aggText = mu.aggregate || '';
+  const leg1HomeIsLeading = mu.winnerIsLeg1Home === true;
+  if (aggText && mu.winnerIsLeg1Home !== null && !leg1HomeIsLeading) {
+    const parts = aggText.split('-');
+    if (parts.length === 2) aggText = `${parts[1]}-${parts[0]}`;
+  }
+  const aggDisplay = aggText
+    ? `<span class="ucl-agg">${escapeHtmlText(aggText)}</span>`
+    : '<span class="ucl-vs-text">vs</span>';
+
+  // 레그 컬럼 렌더링: 1차전/2차전 각각 독립 컬럼
+  const legCol = (leg, num, isLeg2Row) => {
+    const numLabel = peeksLang === 'ko' ? `${num}차전` : `Leg ${num}`;
+    if (!leg) {
+      return `<div class="ucl-leg-col">
+        <span class="ucl-leg-col-num">${numLabel}</span>
+        <span class="ucl-leg-col-score">-</span>
+        <span class="ucl-leg-col-status">-</span>
+      </div>`;
+    }
+    const state = leg.state;
+    const isLive = state === 'in';
+    const isPost = state === 'post';
+
+    // leg1: teamA=홈(homeScore), teamB=원정(awayScore)
+    // leg2: teamA=원정(awayScore), teamB=홈(homeScore)
+    const aScore = isLeg2Row ? leg.awayScore : leg.homeScore;
+    const bScore = isLeg2Row ? leg.homeScore : leg.awayScore;
+
+    const scoreHtml = (isPost || isLive)
+      ? `<span class="ucl-leg-col-score">${aScore} – ${bScore}</span>`
+      : `<span class="ucl-leg-col-score ucl-leg-col-score--pre">–</span>`;
+
+    const statusHtml = isLive
+      ? `<span class="ucl-leg-col-status live"><span class="ucl-live-dot">●</span> LIVE</span>`
+      : isPost
+        ? `<span class="ucl-leg-col-status">${escapeHtmlText(leg.status || 'FT')}</span>`
+        : leg.date
+          ? `<span class="ucl-leg-col-status">${escapeHtmlText(uclFormatLegDate(leg.date))}</span>`
+          : `<span class="ucl-leg-col-status">-</span>`;
+
+    // 경기장 표시: 홈팀 경기장 (도시 우선, 없으면 경기장명)
+    const venueLabel = leg.city || leg.venue || '';
+    const venueHtml = venueLabel
+      ? `<span class="ucl-leg-col-venue">${escapeHtmlText(venueLabel)}</span>`
+      : '';
+
+    return `<div class="ucl-leg-col">
+      <span class="ucl-leg-col-num">${numLabel}</span>
+      ${scoreHtml}
+      ${statusHtml}
+      ${venueHtml}
+    </div>`;
+  };
+
+  return `<div class="ucl-matchup ${isDecided ? 'ucl-matchup--decided' : ''}">
+    <div class="ucl-matchup-teams">
+      ${teamHtml(teamA, aIsWinner, bIsWinner && isDecided, 'left')}
+      <div class="ucl-matchup-center">${aggDisplay}</div>
+      ${teamHtml(teamB, bIsWinner, aIsWinner && isDecided, 'right')}
+    </div>
+    <div class="ucl-legs-wrap">
+      ${legCol(leg1, 1, false)}
+      ${legCol(leg2, 2, true)}
+    </div>
+  </div>`;
+}
+
+function renderUclBracket(container) {
+  if (!container || !uclTournamentData) return;
+  const { rounds, roundOrder } = uclTournamentData;
+  const roundData = rounds[uclViewRoundKey];
+  if (!roundData) return;
+
+  const currentIdx = roundOrder.indexOf(uclViewRoundKey);
+  const hasPrev = currentIdx > 0;
+  const hasNext = currentIdx < roundOrder.length - 1;
+
+  const prevKey = hasPrev ? roundOrder[currentIdx - 1] : null;
+  const nextKey = hasNext ? roundOrder[currentIdx + 1] : null;
+
+  const prevRound = prevKey ? rounds[prevKey] : null;
+  const nextRound = nextKey ? rounds[nextKey] : null;
+
+  const navHtml = `<div class="ucl-nav">
+    <button class="ucl-nav-btn ${hasPrev ? '' : 'disabled'}" data-roundkey="${prevKey || ''}" id="ucl-nav-prev">
+      ‹ ${hasPrev ? escapeHtmlText(peeksLang === 'ko' ? prevRound.nameKo : prevRound.name) : ''}
+    </button>
+    <span class="ucl-nav-current">${escapeHtmlText(peeksLang === 'ko' ? roundData.nameKo : roundData.name)}</span>
+    <button class="ucl-nav-btn ucl-nav-btn--right ${hasNext ? '' : 'disabled'}" data-roundkey="${nextKey || ''}" id="ucl-nav-next">
+      ${hasNext ? escapeHtmlText(peeksLang === 'ko' ? nextRound.nameKo : nextRound.name) : ''} ›
+    </button>
+  </div>`;
+
+  const isFinal = uclViewRoundKey === 'final';
+
+  // 결승: 경기장 배너 (API 또는 고정값)
+  let finalVenueBanner = '';
+  if (isFinal) {
+    const finalMu = roundData.matchups[0];
+    const finalLeg = finalMu?.leg1 || finalMu?.leg2;
+    const venueName = (finalLeg?.venue && finalLeg.venue !== 'TBC') ? finalLeg.venue : 'Puskás Aréna';
+    const cityName  = (finalLeg?.city  && finalLeg.city  !== '')    ? finalLeg.city  : 'Budapest';
+    finalVenueBanner = `<div class="ucl-final-venue">
+      🏟 ${escapeHtmlText(venueName)}, ${escapeHtmlText(cityName)}
+    </div>`;
+  }
+
+  const matchupsHtml = roundData.matchups.map(renderUclMatchupCard).join('');
+
+  container.innerHTML = `<div class="ucl-bracket">
+    ${navHtml}
+    ${finalVenueBanner}
+    <div class="ucl-matchups">${matchupsHtml}</div>
+  </div>`;
+
+  // 네비게이션 이벤트
+  const prevBtn = container.querySelector('#ucl-nav-prev');
+  const nextBtn = container.querySelector('#ucl-nav-next');
+  if (prevBtn && hasPrev) {
+    prevBtn.addEventListener('click', () => {
+      uclViewRoundKey = prevKey;
+      renderUclBracket(container);
+    });
+  }
+  if (nextBtn && hasNext) {
+    nextBtn.addEventListener('click', () => {
+      uclViewRoundKey = nextKey;
+      renderUclBracket(container);
+    });
   }
 }
 
@@ -1756,6 +2126,8 @@ async function loadStandings() {
       fillCheckboxList(mlbTeams, 'mlb');
     }
 
+    if (favoriteTeams.some((ft) => ft.sport === 'kbo')) void fillKboCheckboxList();
+
     if (!favoriteTeams.length) {
       renderTeamCards();           // empty state 표시
       setView('my-team');          // setup 대신 홈 empty state로
@@ -1788,7 +2160,9 @@ async function updateScores() {
     const gamesLoads =
       activeGamesSport === 'soccer' && allGamesOpen
         ? Promise.all(SOCCER_LEAGUE_IDS.map((lid) => loadAllGames('soccer', lid)))
-        : loadAllGames(activeGamesSport);
+        : activeGamesSport === 'baseball' && allGamesOpen
+          ? Promise.all(['mlb', 'kbo'].map((s) => loadAllGames(s)))
+          : loadAllGames(activeGamesSport === 'baseball' ? activeBaseballGamesLeague : activeGamesSport);
     await Promise.all([loadStandings(), loadTeamGameStatus(), gamesLoads]);
     syncSoccerGamesSubtabsVisibility();
   } finally {
@@ -1800,7 +2174,8 @@ async function updateScores() {
 // ── 팀 검색 필터 ──
 function applyTeamSearch(query) {
   const q = query.trim().toLowerCase();
-  const activeList = activeSetupSport === 'mlb' ? mlbCheckboxListEl
+  const activeList = activeSetupSport === 'baseball'
+    ? (activeBaseballSetupLeague === 'kbo' ? kboCheckboxListEl : mlbCheckboxListEl)
     : activeSetupSport === 'soccer' ? soccerCheckboxListEl
     : nbaCheckboxListEl;
   if (activeList) {
@@ -1856,11 +2231,18 @@ allGamesToggleBtn.addEventListener('click', () => {
   if (allGamesOpen && activeGamesSport === 'soccer') {
     prefetchAllSoccerGamesCaches();
   }
+  if (allGamesOpen && activeGamesSport === 'baseball') {
+    prefetchAllBaseballGamesCaches();
+  }
   syncSoccerGamesSubtabsVisibility();
 
   if (allGamesOpen && activeGamesSport === 'soccer') {
     const c = soccerGamesCache[activeSoccerGamesLeague];
     if (c == null) loadAllGames('soccer', activeSoccerGamesLeague);
+    else renderAllGames();
+  } else if (allGamesOpen && activeGamesSport === 'baseball') {
+    const c = allGamesCache[activeBaseballGamesLeague];
+    if (c == null) loadAllGames(activeBaseballGamesLeague);
     else renderAllGames();
   } else if (allGamesOpen && allGamesCache[activeGamesSport] === null) {
     loadAllGames(activeGamesSport);
@@ -1878,10 +2260,20 @@ document.querySelectorAll('.games-filter-btn').forEach((btn) => {
     if (activeGamesSport === 'soccer' && allGamesOpen) {
       prefetchAllSoccerGamesCaches();
     }
+    if (activeGamesSport === 'baseball' && allGamesOpen) {
+      prefetchAllBaseballGamesCaches();
+    }
+    document.querySelectorAll('.baseball-games-tab').forEach((b) => {
+      b.classList.toggle('active', b.dataset.baseballGames === activeBaseballGamesLeague);
+    });
     syncSoccerGamesSubtabsVisibility();
     if (activeGamesSport === 'soccer') {
       const cached = soccerGamesCache[activeSoccerGamesLeague];
       if (cached == null) loadAllGames('soccer', activeSoccerGamesLeague);
+      else renderAllGames();
+    } else if (activeGamesSport === 'baseball') {
+      const cached = allGamesCache[activeBaseballGamesLeague];
+      if (cached == null) loadAllGames(activeBaseballGamesLeague);
       else renderAllGames();
     } else {
       if (allGamesCache[activeGamesSport] != null) renderAllGames();
@@ -1902,14 +2294,31 @@ document.querySelectorAll('.soccer-games-tab').forEach((btn) => {
   });
 });
 
+// ── 야구 All Games MLB/KBO 서브탭 ──
+document.querySelectorAll('.baseball-games-tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.baseball-games-tab').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeBaseballGamesLeague = btn.dataset.baseballGames === 'kbo' ? 'kbo' : 'mlb';
+    const cached = allGamesCache[activeBaseballGamesLeague];
+    if (cached == null) loadAllGames(activeBaseballGamesLeague);
+    else renderAllGames();
+  });
+});
+
 // ── Soccer 순위 리그 서브탭 ──
-document.querySelectorAll('.soccer-std-tab').forEach((btn) => {
+soccerStandingsSubtabsEl?.querySelectorAll('.soccer-std-tab').forEach((btn) => {
   btn.addEventListener('click', () => activateSoccerStandingsTab(btn.dataset.league));
 });
 
 // ── Soccer 설정 리그 서브탭 ──
 document.querySelectorAll('.soccer-setup-tab').forEach((btn) => {
   btn.addEventListener('click', () => activateSoccerSetupTab(btn.dataset.league));
+});
+
+// ── 야구 설정 MLB/KBO 서브탭 ──
+document.querySelectorAll('.baseball-setup-tab').forEach((btn) => {
+  btn.addEventListener('click', () => activateBaseballSetupTab(btn.dataset.baseballSetup));
 });
 
 document.querySelectorAll('.sport-tab').forEach((btn) => {
@@ -1943,6 +2352,9 @@ saveFavoriteBtn.addEventListener('click', () => {
   });
   mlbCheckboxListEl.querySelectorAll('input:checked').forEach((cb) => {
     checked.push({ teamId: cb.value, sport: 'mlb' });
+  });
+  kboCheckboxListEl.querySelectorAll('input:checked').forEach((cb) => {
+    checked.push({ teamId: cb.value, sport: 'kbo' });
   });
   // soccer: data-league 속성에서 leagueId 추출
   soccerCheckboxListEl.querySelectorAll('input:checked').forEach((cb) => {
@@ -2255,15 +2667,17 @@ function scheduleMidnightRefresh() {
     prevGameStatuses = {};
     teamNextGames = {};
     mlbTeams = [];
-    allGamesCache = { nba: null, mlb: null };
+    allGamesCache = { nba: null, mlb: null, kbo: null };
     soccerGamesCache = {};
     soccerStandingsLoaded = {};
     loadStandings();
     loadTeamGameStatus();
     if (activeGamesSport === 'soccer' && allGamesOpen) {
       SOCCER_LEAGUE_IDS.forEach((lid) => loadAllGames('soccer', lid));
+    } else if (activeGamesSport === 'baseball' && allGamesOpen) {
+      ['mlb', 'kbo'].forEach((s) => loadAllGames(s));
     } else {
-      loadAllGames(activeGamesSport);
+      loadAllGames(activeGamesSport === 'baseball' ? activeBaseballGamesLeague : activeGamesSport);
     }
     syncSoccerGamesSubtabsVisibility();
     scheduleMidnightRefresh();
