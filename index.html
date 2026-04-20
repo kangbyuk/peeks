@@ -158,6 +158,7 @@
           <div class="all-games-header">
             <button id="all-games-toggle" class="all-games-toggle">
               <span class="all-games-title" data-i18n="allGames.title">ALL GAMES</span>
+              <span id="all-games-season-badge" class="all-games-season-badge hidden" aria-live="polite"></span>
               <svg class="toggle-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <div class="games-filter-tabs" id="games-filter-tabs">
@@ -178,6 +179,7 @@
             <button class="soccer-games-tab" data-league="ger.1">Bun.</button>
             <button class="soccer-games-tab" data-league="ita.1">Serie A</button>
             <button class="soccer-games-tab" data-league="uefa.champions">UCL</button>
+            <button class="soccer-games-tab" data-league="uefa.europa">UEL</button>
           </div>
           <div id="all-games-list" class="all-games-list"></div>
         </div>
@@ -189,6 +191,11 @@
           <button class="standings-tab" data-standings="mlb">⚾ MLB</button>
           <button class="standings-tab" data-standings="soccer">⚽</button>
         </div>
+        <!-- NBA: 플레이오프 / 정규시즌 (🏀 선택 시) -->
+        <div id="nba-standings-subtabs" class="nba-standings-subtabs soccer-standings-subtabs hidden">
+          <button type="button" class="nba-std-tab soccer-std-tab active" data-nba-standings="playoff" data-i18n="standings.nbaPlayoff">플레이오프</button>
+          <button type="button" class="nba-std-tab soccer-std-tab" data-nba-standings="regular" data-i18n="standings.nbaRegular">정규시즌</button>
+        </div>
         <!-- 축구 리그 서브탭 (⚽ 선택 시 표시) -->
         <div id="soccer-standings-subtabs" class="soccer-standings-subtabs hidden">
           <button class="soccer-std-tab active" data-league="eng.1">EPL</button>
@@ -196,40 +203,45 @@
           <button class="soccer-std-tab" data-league="ger.1">Bun.</button>
           <button class="soccer-std-tab" data-league="ita.1">Serie A</button>
           <button class="soccer-std-tab" data-league="uefa.champions">UCL</button>
+          <button class="soccer-std-tab" data-league="uefa.europa">UEL</button>
         </div>
 
-        <!-- NBA 순위 -->
+        <!-- NBA 순위 / 플레이오프 대진 -->
         <div id="nba-tables" class="tables">
-          <article class="panel">
-            <h2 data-i18n="table.western">Western</h2>
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th class="col-rank">#</th>
-                  <th class="col-team" data-i18n="table.team">Team</th>
-                  <th class="col-w">W</th>
-                  <th class="col-l">L</th>
-                  <th class="col-pct">PCT</th>
-                </tr>
-              </thead>
-              <tbody id="west-body"></tbody>
-            </table>
-          </article>
-          <article class="panel">
-            <h2 data-i18n="table.eastern">Eastern</h2>
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th class="col-rank">#</th>
-                  <th class="col-team" data-i18n="table.team">Team</th>
-                  <th class="col-w">W</th>
-                  <th class="col-l">L</th>
-                  <th class="col-pct">PCT</th>
-                </tr>
-              </thead>
-              <tbody id="east-body"></tbody>
-            </table>
-          </article>
+          <p id="nba-standings-phase" class="standings-phase-note hidden" aria-live="polite"></p>
+          <div id="nba-playoff-bracket" class="nba-playoff-bracket hidden" aria-live="polite"></div>
+          <div id="nba-standings-tables" class="nba-standings-tables">
+            <article class="panel">
+              <h2 data-i18n="table.western">Western</h2>
+              <table class="rank-table">
+                <thead>
+                  <tr>
+                    <th class="col-rank">#</th>
+                    <th class="col-team" data-i18n="table.team">Team</th>
+                    <th class="col-w">W</th>
+                    <th class="col-l">L</th>
+                    <th class="col-pct">PCT</th>
+                  </tr>
+                </thead>
+                <tbody id="west-body"></tbody>
+              </table>
+            </article>
+            <article class="panel">
+              <h2 data-i18n="table.eastern">Eastern</h2>
+              <table class="rank-table">
+                <thead>
+                  <tr>
+                    <th class="col-rank">#</th>
+                    <th class="col-team" data-i18n="table.team">Team</th>
+                    <th class="col-w">W</th>
+                    <th class="col-l">L</th>
+                    <th class="col-pct">PCT</th>
+                  </tr>
+                </thead>
+                <tbody id="east-body"></tbody>
+              </table>
+            </article>
+          </div>
         </div>
 
         <!-- MLB 순위 (리그 → East/Central/West 지구별) -->

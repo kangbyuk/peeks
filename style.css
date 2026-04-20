@@ -682,7 +682,7 @@ h1 {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   height: auto;
 }
 
@@ -705,7 +705,7 @@ h1 {
 .all-games-section {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 2px;
   padding-bottom: 2px;
   flex-shrink: 0;
   height: auto;
@@ -740,6 +740,22 @@ h1 {
   font-weight: 800;
   letter-spacing: 1px;
   color: #4a5a6e;
+}
+
+.all-games-season-badge {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.35px;
+  color: #d4a84b;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(212, 168, 75, 0.14);
+  margin-left: 2px;
+  white-space: nowrap;
+}
+
+.all-games-season-badge.hidden {
+  display: none;
 }
 
 .toggle-chevron {
@@ -1711,6 +1727,7 @@ h1 {
 }
 
 /* ── 축구 리그 서브탭 (공용) ── */
+.nba-standings-subtabs,
 .soccer-standings-subtabs,
 .soccer-games-subtabs,
 .baseball-games-subtabs,
@@ -1721,11 +1738,19 @@ h1 {
   padding: 4px 0 2px;
   flex-shrink: 0;
 }
+.nba-standings-subtabs.hidden,
 .soccer-standings-subtabs.hidden,
 .soccer-games-subtabs.hidden,
 .baseball-games-subtabs.hidden,
 .soccer-league-subtabs.hidden { display: none !important; }
 
+/* 전체 경기: 리그 서브탭 ↔ 경기 행 사이 여백 축소 */
+.all-games-section .soccer-games-subtabs,
+.all-games-section .baseball-games-subtabs {
+  padding: 1px 0 0;
+}
+
+.nba-std-tab,
 .soccer-std-tab,
 .soccer-games-tab,
 .soccer-setup-tab,
@@ -1746,6 +1771,7 @@ h1 {
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   -webkit-app-region: no-drag;
 }
+.nba-std-tab.active,
 .soccer-std-tab.active,
 .soccer-games-tab.active,
 .soccer-setup-tab.active,
@@ -1755,6 +1781,7 @@ h1 {
   color: #d0f0e0;
   border-color: rgba(40, 180, 100, 0.35);
 }
+.nba-std-tab:hover:not(.active),
 .soccer-std-tab:hover:not(.active),
 .soccer-games-tab:hover:not(.active),
 .soccer-setup-tab:hover:not(.active),
@@ -1770,6 +1797,89 @@ h1 {
   gap: 10px;
   flex: 1;
   min-height: 0;
+}
+
+.tables > .standings-phase-note {
+  grid-column: 1 / -1;
+  margin: 0 0 2px 0;
+  padding: 0 2px;
+  font-size: 7px;
+  color: #6b7f96;
+  line-height: 1.35;
+}
+
+.tables > .standings-phase-note.hidden {
+  display: none;
+}
+
+.nba-standings-tables {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  min-height: 0;
+}
+
+/* NBA 플옵: UCL 토너먼트 탭과 동일 ucl-* 마크업 — 스크롤 영역만 위젯에 맞게 제한 */
+.tables > .nba-playoff-bracket {
+  grid-column: 1 / -1;
+  min-height: 0;
+  max-height: min(52vh, 380px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 0 4px;
+  scrollbar-width: thin;
+}
+
+.tables > .nba-playoff-bracket.hidden {
+  display: none;
+}
+
+.nba-po-bracket-foot {
+  margin: 8px 2px 0;
+  padding: 0 2px;
+  font-size: 6.5px;
+  color: #5c6d82;
+  line-height: 1.35;
+}
+
+/* UCL 2열 레그와 동일 톤 — NBA는 시리즈/요약 2컬럼 */
+.ucl-legs-wrap--nba-po {
+  gap: 18px;
+}
+
+.ucl-leg-col--nba-po-wide {
+  min-width: 100%;
+  max-width: 100%;
+}
+
+.ucl-leg-col--nba-po-wide .ucl-leg-col-status {
+  text-align: center;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.ucl-matchup--nba-tbd .ucl-matchup-teams {
+  opacity: 0.95;
+}
+
+.nba-po-round-empty {
+  padding: 10px 8px;
+  font-size: 8.5px;
+  color: #7a8fa8;
+  line-height: 1.45;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+}
+
+.nba-bracket-empty {
+  padding: 12px 8px;
+  font-size: 8px;
+  color: #7a8fa8;
+  text-align: center;
+  line-height: 1.4;
 }
 
 /* MLB: 리그당 East / Central / West 지구 블록 */
@@ -2289,6 +2399,10 @@ body.coder-mode .baseball-games-subtabs {
 body.coder-mode .all-games-title {
   color: #858585;
   letter-spacing: 0.12em;
+}
+
+body.coder-mode .all-games-season-badge {
+  display: none !important;
 }
 
 body.coder-mode .games-filter-btn {

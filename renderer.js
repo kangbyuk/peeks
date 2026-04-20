@@ -14,7 +14,8 @@ const SOCCER_LEAGUES = {
   'esp.1':          { name: 'La Liga',    shortName: 'LAL',  emoji: '🇪🇸' },
   'ger.1':          { name: 'Bundesliga', shortName: 'BUN',  emoji: '🇩🇪' },
   'ita.1':          { name: 'Serie A',    shortName: 'SRA',  emoji: '🇮🇹' },
-  'uefa.champions': { name: 'UCL',        shortName: 'UCL',  emoji: '⭐' }
+  'uefa.champions': { name: 'UCL',        shortName: 'UCL',  emoji: '⭐' },
+  'uefa.europa':    { name: 'UEL',        shortName: 'UEL',  emoji: '🟠' }
 };
 const SOCCER_LEAGUE_IDS = Object.keys(SOCCER_LEAGUES);
 
@@ -27,7 +28,8 @@ const SOCCER_ZONES = {
   'esp.1':          { ucl:[1,4],  uel:[5,6],   playoff:null,   rel:[18,20] },
   'ger.1':          { ucl:[1,4],  uel:[5,6],   playoff:null,   rel:[16,18] },
   'ita.1':          { ucl:[1,4],  uel:[5,6],   playoff:null,   rel:[18,20] },
-  'uefa.champions': { ucl:[1,8],  uel:null,    playoff:[9,24], rel:[25,36] }
+  'uefa.champions': { ucl:[1,8],  uel:null,    playoff:[9,24], rel:[25,36] },
+  'uefa.europa':    { ucl:[1,8],  uel:null,    playoff:[9,24], rel:[25,36] }
 };
 
 // ── 스텔스 설정 키 ──
@@ -105,6 +107,22 @@ const I18N = {
     'allGames.loadingNba': 'NBA 일정 불러오는 중...',
     'allGames.loadingMlb': 'MLB 일정 불러오는 중...',
     'allGames.loadingGeneric': '불러오는 중...',
+    'standings.nbaPlayoff': '플레이오프',
+    'standings.nbaRegular': '정규시즌',
+    'standings.nbaBracketFoot': '라운드·시리즈 전적은 ESPN 포스트시즌 일정을 기준으로 묶었습니다. 다음 라운드 상대는 경기가 잡히면 표시됩니다.',
+    'standings.nbaBracketEmpty': '플레이오프 대진을 불러오지 못했습니다. 새로고침하거나 잠시 후 다시 시도해 주세요.',
+    'standings.nbaRound.playin': '플레이인',
+    'standings.nbaRound.r1': '1라운드 (동·서부)',
+    'standings.nbaRound.r2': '컨퍼런스 세미파이널',
+    'standings.nbaRound.r3': '컨퍼런스 파이널',
+    'standings.nbaRound.finals': 'NBA 파이널',
+    'standings.nbaPoTbdSlot': '대진 미확정',
+    'standings.nbaPoTbdBridge':
+      '앞 라운드에서 올라온 팀이 정해지면 이 슬롯에 붙습니다. (서부·동부 각 시리즈 결과 후 확정)',
+    'standings.nbaPoTbdLeft': '앞 라운드에서 이긴 팀',
+    'standings.nbaPoTbdRight': '앞 라운드에서 이긴 팀',
+    'standings.nbaRoundPending':
+      '이 단계 경기는 아직 ESPN 일정·스코어보드에 없거나, 중간 라운드가 열리면 표시됩니다.',
     'soccer.loadingLeague': '{name} 불러오는 중...',
     'loading.mlbTeams': 'MLB 팀 불러오는 중...',
     'loading.mlbSeason': 'MLB 시즌 준비 중',
@@ -168,6 +186,22 @@ const I18N = {
     'allGames.loadingNba': 'Loading NBA schedule...',
     'allGames.loadingMlb': 'Loading MLB schedule...',
     'allGames.loadingGeneric': 'Loading...',
+    'standings.nbaPlayoff': 'Playoffs',
+    'standings.nbaRegular': 'Regular season',
+    'standings.nbaBracketFoot': 'Rounds and series are grouped from ESPN’s postseason schedule. Next-round matchups appear when games are scheduled.',
+    'standings.nbaBracketEmpty': 'Could not load the playoff bracket. Try refreshing.',
+    'standings.nbaRound.playin': 'Play-In',
+    'standings.nbaRound.r1': 'First round (East & West)',
+    'standings.nbaRound.r2': 'Conference semifinals',
+    'standings.nbaRound.r3': 'Conference finals',
+    'standings.nbaRound.finals': 'NBA Finals',
+    'standings.nbaPoTbdSlot': 'Slot TBD',
+    'standings.nbaPoTbdBridge':
+      'Previous-round winners are paired here once set. Updates when matchups are scheduled.',
+    'standings.nbaPoTbdLeft': 'Winner from prior round',
+    'standings.nbaPoTbdRight': 'Winner from prior round',
+    'standings.nbaRoundPending':
+      'No games for this round in ESPN’s feed yet, or they appear once that round starts.',
     'soccer.loadingLeague': 'Loading {name}...',
     'loading.mlbTeams': 'Loading MLB teams...',
     'loading.mlbSeason': 'MLB season not ready',
@@ -304,6 +338,9 @@ const mlbTablesEl     = document.getElementById('mlb-tables');
 const soccerTablesEl  = document.getElementById('soccer-tables');
 const soccerStdBodyEl = document.getElementById('soccer-standings-body');
 const soccerStandingsSubtabsEl = document.getElementById('soccer-standings-subtabs');
+const nbaStandingsSubtabsEl    = document.getElementById('nba-standings-subtabs');
+const nbaPlayoffBracketEl      = document.getElementById('nba-playoff-bracket');
+const nbaStandingsTablesWrapEl = document.getElementById('nba-standings-tables');
 const soccerGamesSubtabsEl     = document.getElementById('soccer-games-subtabs');
 // 하위 호환 alias (epl-body 제거됨 — soccer-standings-body 사용)
 const eplBodyEl = soccerStdBodyEl;
@@ -367,7 +404,7 @@ Object.defineProperty(window, 'eplTeams', {
 let favoriteTeams = loadFavoriteTeams();  // [{ teamId, sport, leagueId? }]
 let currentView = 'my-team';
 
-/** 즐겨찾기에 uefa.champions만 있을 때 국내 리그 데이터를 받아와 소속 리그로 마이그레이션 */
+/** 즐겨찾기에 UCL/UEL만 있을 때 국내 리그 데이터를 받아와 소속 리그로 마이그레이션 */
 function getSoccerLeagueIdsToPrefetch() {
   const fromFav = [
     ...new Set(
@@ -375,7 +412,7 @@ function getSoccerLeagueIdsToPrefetch() {
     )
   ];
   const set = new Set(fromFav);
-  if (fromFav.includes('uefa.champions')) {
+  if (fromFav.includes('uefa.champions') || fromFav.includes('uefa.europa')) {
     DOMESTIC_SOCCER_LEAGUE_IDS.forEach((d) => set.add(d));
   }
   return [...set];
@@ -397,7 +434,7 @@ function reconcileUclSoccerFavoritesToDomestic(leagueIdJustLoaded) {
   const teamIds = new Set(teams.map((t) => String(t.teamId)));
   let changed = false;
   favoriteTeams = favoriteTeams.map((ft) => {
-    if (ft.sport !== 'soccer' || ft.leagueId !== 'uefa.champions') return ft;
+    if (ft.sport !== 'soccer' || (ft.leagueId !== 'uefa.champions' && ft.leagueId !== 'uefa.europa')) return ft;
     if (teamIds.has(String(ft.teamId))) {
       changed = true;
       return { ...ft, leagueId: leagueIdJustLoaded };
@@ -429,6 +466,45 @@ let coderFormat = localStorage.getItem(PEEKS_CODER_FORMAT_KEY) === 'code' ? 'cod
 
 // ── All Games 상태 ──
 let allGamesCache     = { nba: null, mlb: null, kbo: null };  // soccer는 leagueId별로 캐시
+/** NBA/MLB scoreboard leagues[0].season — 플레이인·플옵 배지용 */
+let allGamesSeasonPhase = { nba: null, mlb: null };
+let lastNbaStandingsResult = null;
+/** NBA 순위 탭: 플레이오프(3) / 정규(2) — localStorage + KST 4–7월 기본 플옵 */
+const NBA_STANDINGS_MODE_KEY = 'nbaStandingsMode';
+
+function getNbaKstMonth() {
+  const m = Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', month: 'numeric' }).format(new Date())
+  );
+  return Number.isFinite(m) ? m : new Date().getMonth() + 1;
+}
+
+function getNbaStandingsDefaultMode() {
+  const m = getNbaKstMonth();
+  return m >= 4 && m <= 7 ? 'playoff' : 'regular';
+}
+
+function readStoredNbaStandingsMode() {
+  try {
+    const s = localStorage.getItem(NBA_STANDINGS_MODE_KEY);
+    if (s === 'playoff' || s === 'regular') return s;
+  } catch (_) { /* noop */ }
+  return getNbaStandingsDefaultMode();
+}
+
+function persistNbaStandingsMode(mode) {
+  try {
+    if (mode === 'playoff' || mode === 'regular') {
+      localStorage.setItem(NBA_STANDINGS_MODE_KEY, mode);
+    }
+  } catch (_) { /* noop */ }
+}
+
+let activeNbaStandingsMode = readStoredNbaStandingsMode();
+let nbaStandingsCache = { playoff: null, regular: null };
+let nbaPlayoffBracketCache = null;
+/** 플레이오프 대진: UCL과 동일한 라운드 네비용 인덱스 */
+let nbaBracketRoundIdx = 0;
 let soccerGamesCache  = {};   // { 'eng.1': [...], ... }
 let activeGamesSport  = 'nba'; // 'nba' | 'baseball' | 'soccer'
 /** 야구 서브: 팀 설정(MLB/KBO) */
@@ -628,14 +704,14 @@ function findTeam(teamId, sport, leagueId = null) {
   }
   if (sport === 'soccer' || sport === 'epl') {
     const lid = leagueId || 'eng.1';
-    if (lid === 'uefa.champions') {
+    if (lid === 'uefa.champions' || lid === 'uefa.europa') {
       for (const d of DOMESTIC_SOCCER_LEAGUE_IDS) {
         const list = soccerTeamsByLeague[d] || [];
         const hit = list.find((t) => String(t.teamId) === String(teamId));
         if (hit) return hit;
       }
-      const ucl = soccerTeamsByLeague['uefa.champions'] || [];
-      return ucl.find((t) => String(t.teamId) === String(teamId));
+      const cup = soccerTeamsByLeague[lid] || [];
+      return cup.find((t) => String(t.teamId) === String(teamId));
     }
     const list = soccerTeamsByLeague[lid] || [];
     return list.find((t) => String(t.teamId) === String(teamId));
@@ -693,6 +769,246 @@ function escapeHtmlText(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+/** 병합된 라운드(r1 등) 제목 — misc는 API 문자열 유지 */
+function nbaPlayoffSectionTitle(sec) {
+  if (!sec) return '';
+  const id = sec.roundId;
+  const map = {
+    playin: 'standings.nbaRound.playin',
+    r1: 'standings.nbaRound.r1',
+    r2: 'standings.nbaRound.r2',
+    r3: 'standings.nbaRound.r3',
+    finals: 'standings.nbaRound.finals'
+  };
+  if (id && map[id]) return t(map[id]);
+  return sec.displayTitle || '';
+}
+
+/** UCL 대진표와 동일한 마크업(ucl-*)으로 NBA 플레이오프 시리즈 렌더 */
+function renderNbaPoTeamLogo(t) {
+  if (t.logo) {
+    return `<img class="ucl-team-logo" src="${escapeHtmlText(t.logo)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
+  }
+  const fb = (t.abbr || '?').slice(0, 3).toUpperCase();
+  return `<span class="ucl-team-logo-fb">${escapeHtmlText(fb)}</span>`;
+}
+
+function renderNbaPoMatchupCard(m) {
+  const tbdBoth =
+    !!m.tbdSlot || (String(m.home.abbr || '').toUpperCase() === 'TBD' && String(m.away.abbr || '').toUpperCase() === 'TBD');
+  if (tbdBoth) {
+    const parts = [t('standings.nbaPoTbdBridge')];
+    if (m.summary) parts.push(m.summary);
+    if (m.eventHint && String(m.eventHint) !== String(m.summary)) parts.push(m.eventHint);
+    const note = parts.map((x) => escapeHtmlText(String(x))).join(' · ');
+    return `<div class="ucl-matchup ucl-matchup--nba-tbd">
+      <div class="ucl-matchup-teams">
+        <div class="ucl-team"><span class="ucl-team-name ucl-team-name--ph">${escapeHtmlText(t('standings.nbaPoTbdLeft'))}</span></div>
+        <div class="ucl-matchup-center"><span class="ucl-vs-text">vs</span></div>
+        <div class="ucl-team ucl-team--right"><span class="ucl-team-name ucl-team-name--ph">${escapeHtmlText(t('standings.nbaPoTbdRight'))}</span></div>
+      </div>
+      <div class="ucl-legs-wrap ucl-legs-wrap--nba-po">
+        <div class="ucl-leg-col ucl-leg-col--nba-po-wide">
+          <span class="ucl-leg-col-num">${escapeHtmlText(t('standings.nbaPoTbdSlot'))}</span>
+          <span class="ucl-leg-col-status">${note}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const decided = m.seriesMode
+    ? m.winsHome >= 4 || m.winsAway >= 4
+    : m.winsHome === 1 || m.winsAway === 1;
+  const homeWon = m.seriesMode ? decided && m.winsHome > m.winsAway : m.winsHome === 1;
+  const awayWon = m.seriesMode ? decided && m.winsAway > m.winsHome : m.winsAway === 1;
+
+  const teamHtml = (team, isWin, isLose, side) => {
+    const winMark = isWin ? '<span class="ucl-winner-mark">✓</span>' : '';
+    const cls = isWin ? 'ucl-team--winner' : isLose ? 'ucl-team--eliminated' : '';
+    const label = team.name || team.abbr || '—';
+    const nameHtml = `<span class="ucl-team-name">${escapeHtmlText(label)}</span>`;
+    if (side === 'right') {
+      return `<div class="ucl-team ucl-team--right ${cls}">${winMark}${nameHtml}${renderNbaPoTeamLogo(team)}</div>`;
+    }
+    return `<div class="ucl-team ${cls}">${renderNbaPoTeamLogo(team)}${nameHtml}${winMark}</div>`;
+  };
+
+  const center = m.seriesMode
+    ? `<span class="ucl-agg">${m.winsHome}–${m.winsAway}</span>`
+    : `<span class="ucl-agg">${m.homePts != null ? m.homePts : '–'}:${m.awayPts != null ? m.awayPts : '–'}</span>`;
+
+  const noteLab = peeksLang === 'ko' ? '요약' : 'Note';
+  const sum = m.summary ? escapeHtmlText(m.summary) : '–';
+
+  return `<div class="ucl-matchup ${decided ? 'ucl-matchup--decided' : ''}">
+    <div class="ucl-matchup-teams">
+      ${teamHtml(m.home, homeWon, decided && awayWon, 'left')}
+      <div class="ucl-matchup-center">${center}</div>
+      ${teamHtml(m.away, awayWon, decided && homeWon, 'right')}
+    </div>
+    <div class="ucl-legs-wrap ucl-legs-wrap--nba-po">
+      <div class="ucl-leg-col ucl-leg-col--nba-po-wide">
+        <span class="ucl-leg-col-num">${noteLab}</span>
+        <span class="ucl-leg-col-status">${sum}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+/** NBA 플옵 대진: 미결 시리즈·플레이인이 있는 가장 늦은 단계를 기본 표시 (TBD 슬롯은 미래 대진용이므로 제외) */
+function pickDefaultNbaPlayoffSectionIdx(sections) {
+  if (!sections?.length) return 0;
+  let bestIdx = -1;
+  let bestSort = -Infinity;
+  const sortOf = (sec, i) => (typeof sec.sort === 'number' ? sec.sort : i * 10);
+
+  const matchupIsLiveOrPending = (m) => {
+    if (m.tbdSlot) return false;
+    if (m.seriesMode) {
+      return (m.winsHome || 0) < 4 && (m.winsAway || 0) < 4;
+    }
+    return (m.winsHome || 0) + (m.winsAway || 0) < 1;
+  };
+
+  for (let i = 0; i < sections.length; i++) {
+    const sec = sections[i];
+    const matchups = sec.matchups || [];
+    let active = false;
+    for (const m of matchups) {
+      if (matchupIsLiveOrPending(m)) {
+        active = true;
+        break;
+      }
+    }
+    if (active) {
+      const s = sortOf(sec, i);
+      if (s >= bestSort) {
+        bestSort = s;
+        bestIdx = i;
+      }
+    }
+  }
+  if (bestIdx >= 0) return bestIdx;
+
+  for (let i = 0; i < sections.length; i++) {
+    const sec = sections[i];
+    if (sec.roundPlaceholder) continue;
+    const mchs = sec.matchups || [];
+    if (mchs.some((m) => !m.tbdSlot)) return i;
+  }
+  return 0;
+}
+
+function renderNbaPlayoffBracketHtml(data) {
+  const sections = data.sections || [];
+  if (!sections.length) return '';
+  nbaBracketRoundIdx = Math.max(0, Math.min(nbaBracketRoundIdx, sections.length - 1));
+  const sec = sections[nbaBracketRoundIdx];
+  const n = nbaBracketRoundIdx;
+  const hasPrev = n > 0;
+  const hasNext = n < sections.length - 1;
+  const prevTitle = hasPrev ? nbaPlayoffSectionTitle(sections[n - 1]) : '';
+  const nextTitle = hasNext ? nbaPlayoffSectionTitle(sections[n + 1]) : '';
+  const curTitle = nbaPlayoffSectionTitle(sec);
+
+  const navHtml = `<div class="ucl-nav">
+    <button type="button" class="ucl-nav-btn ${hasPrev ? '' : 'disabled'}" data-nba-po-nav="prev">
+      ‹ ${hasPrev ? escapeHtmlText(prevTitle) : ''}
+    </button>
+    <span class="ucl-nav-current">${escapeHtmlText(curTitle)}</span>
+    <button type="button" class="ucl-nav-btn ucl-nav-btn--right ${hasNext ? '' : 'disabled'}" data-nba-po-nav="next">
+      ${hasNext ? escapeHtmlText(nextTitle) : ''} ›
+    </button>
+  </div>`;
+
+  const matchupsHtml =
+    sec.roundPlaceholder && !(sec.matchups || []).length
+      ? `<div class="nba-po-round-empty">${escapeHtmlText(t('standings.nbaRoundPending'))}</div>`
+      : (sec.matchups || []).map(renderNbaPoMatchupCard).join('');
+
+  return `<div class="ucl-bracket">
+    ${navHtml}
+    <div class="ucl-matchups">${matchupsHtml}</div>
+    <p class="nba-po-bracket-foot">${escapeHtmlText(t('standings.nbaBracketFoot'))}</p>
+  </div>`;
+}
+
+function bindNbaPlayoffBracketNavOnce() {
+  if (!nbaPlayoffBracketEl || nbaPlayoffBracketEl.dataset.poNavBound === '1') return;
+  nbaPlayoffBracketEl.dataset.poNavBound = '1';
+  nbaPlayoffBracketEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-nba-po-nav]');
+    if (!btn || btn.classList.contains('disabled')) return;
+    const dir = btn.getAttribute('data-nba-po-nav');
+    const secs = nbaPlayoffBracketCache?.sections;
+    if (!secs?.length) return;
+    if (dir === 'prev') nbaBracketRoundIdx = Math.max(0, nbaBracketRoundIdx - 1);
+    if (dir === 'next') nbaBracketRoundIdx = Math.min(secs.length - 1, nbaBracketRoundIdx + 1);
+    nbaPlayoffBracketEl.innerHTML = renderNbaPlayoffBracketHtml(nbaPlayoffBracketCache);
+  });
+}
+
+async function loadNbaPlayoffBracketUi(options = {}) {
+  const { bypassCache = false } = options;
+  if (!nbaPlayoffBracketEl || !nbaStandingsTablesWrapEl) return;
+
+  if (activeNbaStandingsMode !== 'playoff') {
+    nbaPlayoffBracketEl.classList.add('hidden');
+    nbaPlayoffBracketEl.innerHTML = '';
+    nbaStandingsTablesWrapEl.classList.remove('hidden');
+    return;
+  }
+
+  let data = null;
+  let bracketFetchedFresh = false;
+  if (!bypassCache && nbaPlayoffBracketCache?.sections?.length) {
+    data = nbaPlayoffBracketCache;
+  } else {
+    try {
+      data = await window.standingsAPI.fetchNbaPlayoffBracket();
+      if (data?.sections?.length && !data.error) {
+        nbaPlayoffBracketCache = data;
+        bracketFetchedFresh = true;
+      } else {
+        nbaPlayoffBracketCache = null;
+        data = null;
+      }
+    } catch {
+      nbaPlayoffBracketCache = null;
+      data = null;
+    }
+  }
+
+  if (data?.sections?.length) {
+    const bracketFirstPaint = !nbaPlayoffBracketEl.innerHTML.trim();
+    if (bracketFetchedFresh || bracketFirstPaint) {
+      nbaBracketRoundIdx = pickDefaultNbaPlayoffSectionIdx(data.sections);
+    }
+    nbaPlayoffBracketEl.innerHTML = renderNbaPlayoffBracketHtml(data);
+    bindNbaPlayoffBracketNavOnce();
+    nbaPlayoffBracketEl.classList.remove('hidden');
+    nbaStandingsTablesWrapEl.classList.add('hidden');
+  } else if (activeNbaStandingsMode === 'playoff') {
+    nbaPlayoffBracketEl.innerHTML = `<div class="nba-bracket-empty">${escapeHtmlText(t('standings.nbaBracketEmpty'))}</div>`;
+    nbaPlayoffBracketEl.classList.remove('hidden');
+    nbaStandingsTablesWrapEl.classList.add('hidden');
+  } else {
+    nbaPlayoffBracketEl.innerHTML = '';
+    nbaPlayoffBracketEl.classList.add('hidden');
+    nbaStandingsTablesWrapEl.classList.remove('hidden');
+  }
+}
+
+function refreshNbaPlayoffBracketLocale() {
+  if (activeNbaStandingsMode !== 'playoff') return;
+  if (!nbaPlayoffBracketEl || nbaPlayoffBracketEl.classList.contains('hidden')) return;
+  if (nbaPlayoffBracketCache?.sections?.length) {
+    nbaPlayoffBracketEl.innerHTML = renderNbaPlayoffBracketHtml(nbaPlayoffBracketCache);
+  } else if (nbaPlayoffBracketEl.querySelector('.nba-bracket-empty')) {
+    nbaPlayoffBracketEl.innerHTML = `<div class="nba-bracket-empty">${escapeHtmlText(t('standings.nbaBracketEmpty'))}</div>`;
+  }
 }
 
 function escapeJsStr(s) {
@@ -1051,6 +1367,45 @@ function favoriteTeamsBaseOrderFromDomOrder(domOrder) {
   return [...live, ...pre, ...rest];
 }
 
+/** 오늘 같은 경기(live/pre/post) — main에서 내려준 matchKey(ESPN event id / KBO gameId) */
+function favoriteStatusMatchKey(ft) {
+  const st = teamGameStatuses[favoriteCardStatusKey(ft)];
+  if (!st?.matchKey || !['live', 'pre', 'post'].includes(st.mode)) return null;
+  return `${ft.sport}:${ft.leagueId || ''}:${st.matchKey}`;
+}
+
+/** 동일 경기에 즐겨찾기가 둘 이상이면 favoriteTeams 배열 순서가 빠른 쪽만 카드로 표시 */
+function headToHeadWinnerByMatchKey() {
+  const map = new Map();
+  favoriteTeams.forEach((ft, i) => {
+    const mk = favoriteStatusMatchKey(ft);
+    if (!mk) return;
+    if (!map.has(mk)) {
+      map.set(mk, ft);
+      return;
+    }
+    const prev = map.get(mk);
+    const prevI = favoriteTeams.indexOf(prev);
+    if (i < prevI) map.set(mk, ft);
+  });
+  return map;
+}
+
+function shouldShowFavoriteCardForHeadToHead(ft, winners) {
+  const mk = favoriteStatusMatchKey(ft);
+  if (!mk) return true;
+  return winners.get(mk) === ft;
+}
+
+function favoriteEntryFromCardDataset(card) {
+  const tid = card.dataset.teamId;
+  const sp = card.dataset.sport;
+  const lid = card.dataset.league || '';
+  return favoriteTeams.find(
+    (ft) => String(ft.teamId) === String(tid) && ft.sport === sp && String(ft.leagueId || '') === String(lid || '')
+  );
+}
+
 function formatRankLabel(team, sport) {
   if (!team) return '-';
   const isSoccer = sport === 'soccer' || sport === 'epl';
@@ -1082,7 +1437,10 @@ function renderTeamCards() {
   }
   if (emptyStateEl) emptyStateEl.classList.add('hidden');
 
-  const displayOrder = orderedFavoriteTeamsForDisplay();
+  const h2hWinners = headToHeadWinnerByMatchKey();
+  const displayOrder = orderedFavoriteTeamsForDisplay().filter((ft) =>
+    shouldShowFavoriteCardForHeadToHead(ft, h2hWinners)
+  );
   const html = displayOrder.map(({ teamId, sport, leagueId }, idx) => {
     try {
       const team = findTeam(teamId, sport, leagueId);
@@ -1176,7 +1534,7 @@ function addToFavorites(teamId, sport, leagueId = null) {
   );
   if (already) return;
   let lid = leagueId;
-  if (sport === 'soccer' && lid === 'uefa.champions') {
+  if (sport === 'soccer' && (lid === 'uefa.champions' || lid === 'uefa.europa')) {
     const d = resolveDomesticLeagueIdForSoccerTeam(teamId);
     if (d) lid = d;
   }
@@ -1305,6 +1663,137 @@ function allGamesLoadingMessage() {
   return t('allGames.loadingGeneric');
 }
 
+function normalizeFetchAllGamesPayload(raw) {
+  if (Array.isArray(raw)) return { games: raw, seasonPhase: null };
+  return { games: raw?.games || [], seasonPhase: raw?.seasonPhase || null };
+}
+
+/** scoreboard season 메타 → ALL GAMES 옆 짧은 배지 (정규시즌 type 2는 숨김) */
+function formatAllGamesSeasonBadge(phase) {
+  if (!phase) return '';
+  const slug = String(phase.slug || '').toLowerCase();
+  const nm = String(phase.name || '').toLowerCase();
+  const ty = phase.type;
+  if (ty === 2 || ty === '2') return '';
+  if (ty === 5 || ty === '5' || slug.includes('playin') || nm.includes('play-in')) {
+    return peeksLang === 'ko' ? '플레이인' : 'Play-In';
+  }
+  if (ty === 3 || ty === '3' || (nm.includes('playoff') && !nm.includes('play-in'))) {
+    return peeksLang === 'ko' ? '플옵' : 'Playoffs';
+  }
+  if (ty === 1 || ty === '1') return peeksLang === 'ko' ? '프리시즌' : 'Preseason';
+  if (phase.name && peeksLang === 'en') return String(phase.name).slice(0, 18);
+  return '';
+}
+
+function syncAllGamesSeasonBadge() {
+  const el = document.getElementById('all-games-season-badge');
+  if (!el) return;
+  const phase =
+    activeGamesSport === 'nba'
+      ? allGamesSeasonPhase.nba
+      : activeGamesSport === 'baseball' && activeBaseballGamesLeague === 'mlb'
+        ? allGamesSeasonPhase.mlb
+        : null;
+  const label = formatAllGamesSeasonBadge(phase);
+  if (!label) {
+    el.textContent = '';
+    el.classList.add('hidden');
+    return;
+  }
+  el.textContent = label;
+  el.classList.remove('hidden');
+}
+
+function syncNbaStandingsPhaseNote(_result) {
+  const el = document.getElementById('nba-standings-phase');
+  if (!el) return;
+  el.textContent = '';
+  el.classList.add('hidden');
+}
+
+function syncNbaStandingsSubtabUi() {
+  if (!nbaStandingsSubtabsEl) return;
+  nbaStandingsSubtabsEl.querySelectorAll('.nba-std-tab').forEach((btn) => {
+    const m = btn.dataset.nbaStandings;
+    btn.classList.toggle('active', m === activeNbaStandingsMode);
+  });
+}
+
+function applyNbaStandingsData(result) {
+  const mode = activeNbaStandingsMode;
+  const nextTeams = [...(result.eastern || []), ...(result.western || [])];
+  const nextSig = JSON.stringify({
+    mode,
+    eastern: result.eastern || [],
+    western: result.western || []
+  });
+  const changed = standingsSignature !== nextSig;
+  nbaTeams = nextTeams;
+  renderRows(easternBody, result.eastern || [], 'nba');
+  renderRows(westernBody, result.western || [], 'nba');
+  standingsSignature = nextSig;
+  fillCheckboxList(nbaTeams, 'nba');
+  return changed;
+}
+
+function finalizeStandingsUiAfterNba(result, changed) {
+  if (favoriteTeams.some((ft) => ft.sport === 'mlb') && !mlbStandingsLoaded) {
+    loadMlbStandings();
+  } else if (mlbTeams.length) {
+    fillCheckboxList(mlbTeams, 'mlb');
+  }
+
+  if (favoriteTeams.some((ft) => ft.sport === 'kbo')) void fillKboCheckboxList();
+
+  if (!favoriteTeams.length) {
+    renderTeamCards();
+    if (currentView !== 'all-rank') setView('my-team');
+  } else {
+    if (changed) renderTeamCards();
+    loadTeamGameStatus();
+    if (currentView !== 'all-rank') setView('my-team');
+  }
+
+  const d = new Date(result.fetchedAt);
+  updatedAtEl.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  updatedAtEl.classList.remove('flash');
+  void updatedAtEl.offsetWidth;
+  updatedAtEl.classList.add('flash');
+  setStatus('');
+}
+
+async function activateNbaStandingsMode(mode) {
+  if (mode !== 'playoff' && mode !== 'regular') return;
+  activeNbaStandingsMode = mode;
+  persistNbaStandingsMode(mode);
+  syncNbaStandingsSubtabUi();
+  setStatus(t('status.loadingData'));
+  try {
+    let result = nbaStandingsCache[mode];
+    if (!result) {
+      const st = mode === 'playoff' ? 3 : 2;
+      result = await window.standingsAPI.fetchStandings('nba', { nbaSeasonType: st });
+      if (!result || result.error) throw new Error(result?.error || 'Fetch failed');
+      nbaStandingsCache[mode] = result;
+    }
+    lastNbaStandingsResult = result;
+    syncNbaStandingsPhaseNote(result);
+    const changed = applyNbaStandingsData(result);
+    finalizeStandingsUiAfterNba(result, changed);
+    await loadNbaPlayoffBracketUi({ bypassCache: mode === 'playoff' });
+  } catch (err) {
+    setStatus(t('status.checkConnection'));
+    const fb = loadingRow(t('status.checkConnection'));
+    easternBody.innerHTML = fb.repeat(5);
+    westernBody.innerHTML = fb.repeat(5);
+    lastNbaStandingsResult = null;
+    syncNbaStandingsPhaseNote(null);
+    nbaPlayoffBracketCache = null;
+    await loadNbaPlayoffBracketUi({ bypassCache: true });
+  }
+}
+
 // ── KBO 경기 행 렌더링 ──
 function kboGameRowHTML(g) {
   const statusMap = {
@@ -1355,11 +1844,13 @@ function renderAllGames() {
   if (games === null || games === undefined) {
     allGamesListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(allGamesLoadingMessage())}</div>`;
     syncSoccerGamesSubtabsVisibility();
+    syncAllGamesSeasonBadge();
     return;
   }
   if (!games.length) {
     allGamesListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(allGamesEmptyMessage())}</div>`;
     syncSoccerGamesSubtabsVisibility();
+    syncAllGamesSeasonBadge();
     return;
   }
   if (activeGamesSport === 'baseball' && activeBaseballGamesLeague === 'kbo') {
@@ -1374,6 +1865,7 @@ function renderAllGames() {
     allGamesListEl.innerHTML = games.map((g) => gameRowHTML(g, activeGamesSport)).join('');
   }
   syncSoccerGamesSubtabsVisibility();
+  syncAllGamesSeasonBadge();
 }
 
 // ── 전체 경기 데이터 로드 ──
@@ -1387,7 +1879,11 @@ async function loadAllGames(
     if (sport === 'kbo') {
       games = await window.standingsAPI.kboFetchAllGames();
     } else {
-      games = await window.standingsAPI.fetchAllGames(sport, lid);
+      const raw = await window.standingsAPI.fetchAllGames(sport, lid);
+      const pack = normalizeFetchAllGamesPayload(raw);
+      games = pack.games;
+      if (sport === 'nba') allGamesSeasonPhase.nba = pack.seasonPhase;
+      else if (sport === 'mlb') allGamesSeasonPhase.mlb = pack.seasonPhase;
     }
     if (sport === 'soccer') {
       soccerGamesCache[lid] = games || [];
@@ -1538,7 +2034,8 @@ function teamRow(r, sport, opts) {
       ? `<img src="${r.logo}" alt="" onerror="this.style.display='none'" />`
       : '';
     const favMark = isFav ? '<span class="epl-fav-mark">★</span>' : '';
-    const zoneIcon = zone === 'row-ucl' ? '<span class="zone-badge zone-badge--ucl">UCL</span>'
+    const zoneIcon = zone === 'row-ucl'
+      ? `<span class="zone-badge zone-badge--ucl">${leagueId === 'uefa.europa' ? 'R16' : 'UCL'}</span>`
                    : zone === 'row-uel' ? '<span class="zone-badge zone-badge--uel">UEL</span>'
                    : zone === 'row-rel' ? '<span class="zone-badge zone-badge--rel">↓</span>'
                    : zone === 'row-pi'  ? '<span class="zone-badge zone-badge--pi">PO</span>'
@@ -1581,7 +2078,7 @@ function attachSoccerTableEvents() {
     if (!row) return;
     const teamId = row.dataset.teamId;
     let lid = row.dataset.league || activeSoccerLeague;
-    if (lid === 'uefa.champions') {
+    if (lid === 'uefa.champions' || lid === 'uefa.europa') {
       const domestic = resolveDomesticLeagueIdForSoccerTeam(teamId);
       if (domestic) lid = domestic;
     }
@@ -1713,7 +2210,7 @@ async function loadTeamGameStatus() {
           const lidResolved = myTeam.leagueId || leagueId || 'eng.1';
           let oppTeam = (soccerTeamsByLeague[lidResolved] || []).find((t) => t.abbr === status.oppAbbr);
           if (!oppTeam) {
-            for (const d of [...DOMESTIC_SOCCER_LEAGUE_IDS, 'uefa.champions']) {
+            for (const d of [...DOMESTIC_SOCCER_LEAGUE_IDS, 'uefa.champions', 'uefa.europa']) {
               oppTeam = (soccerTeamsByLeague[d] || []).find((t) => t.abbr === status.oppAbbr);
               if (oppTeam) break;
             }
@@ -1766,6 +2263,10 @@ function activateStandingsTab(sport) {
   mlbTablesEl.classList.toggle('hidden', sport !== 'mlb');
   soccerTablesEl.classList.toggle('hidden', sport !== 'soccer');
   soccerStandingsSubtabsEl.classList.toggle('hidden', sport !== 'soccer');
+  if (nbaStandingsSubtabsEl) {
+    nbaStandingsSubtabsEl.classList.toggle('hidden', sport !== 'nba');
+    if (sport === 'nba') syncNbaStandingsSubtabUi();
+  }
 
   if (sport === 'soccer') activateSoccerStandingsTab(activeSoccerLeague);
   if (sport === 'mlb' && !mlbStandingsLoaded) loadMlbStandings();
@@ -1778,9 +2279,9 @@ function activateSoccerStandingsTab(leagueId) {
     btn.classList.toggle('active', btn.dataset.league === leagueId);
   });
 
-  // UCL: 토너먼트 단계이면 대진표 표시
-  if (leagueId === 'uefa.champions') {
-    loadUclTournamentOrStandings();
+  // UCL·UEL: 토너먼트 단계이면 대진표 표시
+  if (leagueId === 'uefa.champions' || leagueId === 'uefa.europa') {
+    loadUefaCupTournamentOrStandings(leagueId);
     return;
   }
 
@@ -1795,32 +2296,35 @@ function activateSoccerStandingsTab(leagueId) {
   }
 }
 
-// ── UCL: 토너먼트 대진표 또는 리그 페이즈 순위 ──
-// ── UCL 토너먼트 상태 ──
-let uclTournamentData = null;
-let uclViewRoundKey = null; // 현재 페이지네이션으로 보고 있는 라운드
+// ── UCL·UEL: 토너먼트 대진표 또는 리그 페이즈 순위 ──
+let uefaCupBracketData = null;
+let uefaCupViewRoundKey = null;
 
-async function loadUclTournamentOrStandings() {
+async function loadUefaCupTournamentOrStandings(leagueId) {
   const wrap = document.querySelector('.epl-standings-wrap');
-  if (wrap) wrap.innerHTML = `<div style="color:#7a8fa8;font-size:10px;padding:8px 4px">UCL 불러오는 중...</div>`;
+  const cupLabel = leagueId === 'uefa.champions' ? 'UCL' : 'UEL';
+  if (wrap) wrap.innerHTML = `<div style="color:#7a8fa8;font-size:10px;padding:8px 4px">${cupLabel} 불러오는 중...</div>`;
 
   try {
-    const data = await window.standingsAPI.fetchUclTournament();
+    const data = leagueId === 'uefa.champions'
+      ? await window.standingsAPI.fetchUclTournament()
+      : await window.standingsAPI.fetchUelTournament();
     if (data && data.roundOrder && data.roundOrder.length) {
-      uclTournamentData = data;
-      uclViewRoundKey = data.currentRoundKey || data.roundOrder[data.roundOrder.length - 1];
-      renderUclBracket(wrap);
+      uefaCupBracketData = data;
+      let vk = data.currentRoundKey;
+      if (!vk || !data.rounds[vk]) vk = data.roundOrder[0];
+      uefaCupViewRoundKey = vk;
+      renderUefaCupBracket(wrap);
       return;
     }
   } catch (e) {
-    console.error('[UCL] tournament fetch 실패', e);
+    console.error(`[${cupLabel}] tournament fetch 실패`, e);
   }
 
-  // 토너먼트 데이터 없으면 리그 페이즈 순위표 폴백
   if (wrap) wrap.innerHTML = '';
   if (soccerStdBodyEl) soccerStdBodyEl.innerHTML = loadingRow(t('allGames.loadingGeneric')).repeat(5);
   attachSoccerTableEvents();
-  loadSoccerStandingsForTable('uefa.champions');
+  loadSoccerStandingsForTable(leagueId);
 }
 
 function uclFormatLegDate(isoStr) {
@@ -1934,13 +2438,16 @@ function renderUclMatchupCard(mu) {
   </div>`;
 }
 
-function renderUclBracket(container) {
-  if (!container || !uclTournamentData) return;
-  const { rounds, roundOrder } = uclTournamentData;
-  const roundData = rounds[uclViewRoundKey];
+function renderUefaCupBracket(container) {
+  if (!container || !uefaCupBracketData) return;
+  const { rounds, roundOrder, leagueId: cupLeagueId } = uefaCupBracketData;
+  if (!rounds[uefaCupViewRoundKey] && roundOrder?.length) {
+    uefaCupViewRoundKey = roundOrder[0];
+  }
+  const roundData = rounds[uefaCupViewRoundKey];
   if (!roundData) return;
 
-  const currentIdx = roundOrder.indexOf(uclViewRoundKey);
+  const currentIdx = roundOrder.indexOf(uefaCupViewRoundKey);
   const hasPrev = currentIdx > 0;
   const hasNext = currentIdx < roundOrder.length - 1;
 
@@ -1960,18 +2467,25 @@ function renderUclBracket(container) {
     </button>
   </div>`;
 
-  const isFinal = uclViewRoundKey === 'final';
+  const isFinal = uefaCupViewRoundKey === 'final';
 
-  // 결승: 경기장 배너 (API 또는 고정값)
   let finalVenueBanner = '';
   if (isFinal) {
     const finalMu = roundData.matchups[0];
     const finalLeg = finalMu?.leg1 || finalMu?.leg2;
-    const venueName = (finalLeg?.venue && finalLeg.venue !== 'TBC') ? finalLeg.venue : 'Puskás Aréna';
-    const cityName  = (finalLeg?.city  && finalLeg.city  !== '')    ? finalLeg.city  : 'Budapest';
-    finalVenueBanner = `<div class="ucl-final-venue">
+    if (cupLeagueId === 'uefa.champions') {
+      const venueName = (finalLeg?.venue && finalLeg.venue !== 'TBC') ? finalLeg.venue : 'Puskás Aréna';
+      const cityName  = (finalLeg?.city  && finalLeg.city  !== '')    ? finalLeg.city  : 'Budapest';
+      finalVenueBanner = `<div class="ucl-final-venue">
       🏟 ${escapeHtmlText(venueName)}, ${escapeHtmlText(cityName)}
     </div>`;
+    } else if (finalLeg?.venue && finalLeg.venue !== 'TBC') {
+      const v = finalLeg.venue;
+      const c = finalLeg.city;
+      finalVenueBanner = `<div class="ucl-final-venue">
+      🏟 ${escapeHtmlText(v)}${c ? `, ${escapeHtmlText(c)}` : ''}
+    </div>`;
+    }
   }
 
   const matchupsHtml = roundData.matchups.map(renderUclMatchupCard).join('');
@@ -1982,19 +2496,18 @@ function renderUclBracket(container) {
     <div class="ucl-matchups">${matchupsHtml}</div>
   </div>`;
 
-  // 네비게이션 이벤트
   const prevBtn = container.querySelector('#ucl-nav-prev');
   const nextBtn = container.querySelector('#ucl-nav-next');
   if (prevBtn && hasPrev) {
     prevBtn.addEventListener('click', () => {
-      uclViewRoundKey = prevKey;
-      renderUclBracket(container);
+      uefaCupViewRoundKey = prevKey;
+      renderUefaCupBracket(container);
     });
   }
   if (nextBtn && hasNext) {
     nextBtn.addEventListener('click', () => {
-      uclViewRoundKey = nextKey;
-      renderUclBracket(container);
+      uefaCupViewRoundKey = nextKey;
+      renderUefaCupBracket(container);
     });
   }
 }
@@ -2100,54 +2613,39 @@ async function loadEplTeams()            { return loadSoccerLeagueData('eng.1');
 async function loadEplStandingsForTable(){ return loadSoccerStandingsForTable('eng.1'); }
 
 // ── NBA + 필요 시 MLB 순위 로드 ──
-async function loadStandings() {
+async function loadStandings(options = {}) {
+  const { bypassNbaCache = false, clearNbaCache = false } = options;
   setStatus(t('status.loadingData'));
   try {
-    const result = await window.standingsAPI.fetchStandings('nba');
-    if (!result || result.error) throw new Error(result?.error || 'Fetch failed');
-
-    const nextTeams = [...(result.eastern || []), ...(result.western || [])];
-    const nextSig = JSON.stringify({ eastern: result.eastern || [], western: result.western || [] });
-    const changed = standingsSignature !== nextSig;
-    nbaTeams = nextTeams;
-
-    if (changed) {
-      renderRows(easternBody, result.eastern || [], 'nba');
-      renderRows(westernBody, result.western || [], 'nba');
-      standingsSignature = nextSig;
+    if (clearNbaCache) {
+      nbaStandingsCache = { playoff: null, regular: null };
+      nbaPlayoffBracketCache = null;
     }
 
-    fillCheckboxList(nbaTeams, 'nba');
-
-    // MLB 즐겨찾기가 있으면 MLB 데이터도 로드 (카드 렌더링 목적)
-    if (favoriteTeams.some((ft) => ft.sport === 'mlb') && !mlbStandingsLoaded) {
-      loadMlbStandings();
-    } else if (mlbTeams.length) {
-      fillCheckboxList(mlbTeams, 'mlb');
-    }
-
-    if (favoriteTeams.some((ft) => ft.sport === 'kbo')) void fillKboCheckboxList();
-
-    if (!favoriteTeams.length) {
-      renderTeamCards();           // empty state 표시
-      setView('my-team');          // setup 대신 홈 empty state로
+    const mode = activeNbaStandingsMode;
+    let result;
+    if (!bypassNbaCache && nbaStandingsCache[mode]) {
+      result = nbaStandingsCache[mode];
     } else {
-      if (changed) renderTeamCards();
-      loadTeamGameStatus();
-      if (currentView !== 'all-rank') setView('my-team');
+      const st = mode === 'playoff' ? 3 : 2;
+      result = await window.standingsAPI.fetchStandings('nba', { nbaSeasonType: st });
+      if (!result || result.error) throw new Error(result?.error || 'Fetch failed');
+      nbaStandingsCache[mode] = result;
     }
 
-    const d = new Date(result.fetchedAt);
-    updatedAtEl.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    updatedAtEl.classList.remove('flash');
-    void updatedAtEl.offsetWidth; // reflow로 애니메이션 재트리거
-    updatedAtEl.classList.add('flash');
-    setStatus('');
+    lastNbaStandingsResult = result;
+    syncNbaStandingsPhaseNote(result);
+    const changed = applyNbaStandingsData(result);
+    finalizeStandingsUiAfterNba(result, changed);
+    await loadNbaPlayoffBracketUi({ bypassCache: bypassNbaCache || clearNbaCache });
   } catch (err) {
     setStatus(t('status.checkConnection'));
     const fb = loadingRow(t('status.checkConnection'));
     easternBody.innerHTML = fb.repeat(5);
     westernBody.innerHTML = fb.repeat(5);
+    lastNbaStandingsResult = null;
+    syncNbaStandingsPhaseNote(null);
+    await loadNbaPlayoffBracketUi({ bypassCache: true });
   }
 }
 
@@ -2163,7 +2661,7 @@ async function updateScores() {
         : activeGamesSport === 'baseball' && allGamesOpen
           ? Promise.all(['mlb', 'kbo'].map((s) => loadAllGames(s)))
           : loadAllGames(activeGamesSport === 'baseball' ? activeBaseballGamesLeague : activeGamesSport);
-    await Promise.all([loadStandings(), loadTeamGameStatus(), gamesLoads]);
+    await Promise.all([loadStandings({ bypassNbaCache: true }), loadTeamGameStatus(), gamesLoads]);
     syncSoccerGamesSubtabsVisibility();
   } finally {
     isRefreshing = false;
@@ -2202,6 +2700,10 @@ function refreshLocaleDependentUI() {
   syncCoderEmptyStateText();
   renderTeamCards();
   renderAllGames();
+  syncAllGamesSeasonBadge();
+  syncNbaStandingsSubtabUi();
+  syncNbaStandingsPhaseNote(lastNbaStandingsResult);
+  refreshNbaPlayoffBracketLocale();
   if (mlbStandingsLoaded && cachedMlbStandingsResult) {
     renderMlbStandingsByDivision(cachedMlbStandingsResult);
   }
@@ -2309,6 +2811,11 @@ document.querySelectorAll('.baseball-games-tab').forEach((btn) => {
 // ── Soccer 순위 리그 서브탭 ──
 soccerStandingsSubtabsEl?.querySelectorAll('.soccer-std-tab').forEach((btn) => {
   btn.addEventListener('click', () => activateSoccerStandingsTab(btn.dataset.league));
+});
+
+// ── NBA 순위: 플레이오프 / 정규시즌 ──
+nbaStandingsSubtabsEl?.querySelectorAll('.nba-std-tab').forEach((btn) => {
+  btn.addEventListener('click', () => activateNbaStandingsMode(btn.dataset.nbaStandings));
 });
 
 // ── Soccer 설정 리그 서브탭 ──
@@ -2449,14 +2956,39 @@ function getCardInsertBeforeFromPointerY(listEl, clientY, draggingCard) {
 
 function syncFavoriteTeamsOrderFromDom(listEl) {
   const cards = [...listEl.querySelectorAll('.team-card')];
-  const next = cards.map((c) => {
-    const lid = c.dataset.league;
-    const base = { teamId: c.dataset.teamId, sport: c.dataset.sport };
-    if (base.sport === 'soccer' && lid) return { ...base, leagueId: lid };
-    return base;
-  }).filter((x) => x.teamId && x.sport);
-  if (next.length !== favoriteTeams.length) return; // 안전: DOM과 불일치 시 무시
-  favoriteTeams = favoriteTeamsBaseOrderFromDomOrder(next);
+  const visibleFts = cards.map((c) => favoriteEntryFromCardDataset(c));
+  if (visibleFts.some((x) => !x)) return;
+  if (visibleFts.length === favoriteTeams.length) {
+    favoriteTeams = favoriteTeamsBaseOrderFromDomOrder(visibleFts);
+    if (PERSIST_FAVORITE_ORDER_AFTER_DRAG) {
+      localStorage.setItem(FAVORITE_TEAMS_KEY, JSON.stringify(favoriteTeams));
+    }
+    return;
+  }
+  // 즐겨찾기 간 맞대결로 카드가 숨겨진 경우: DOM 순서 + 숨긴 팀은 같은 경기 승자 바로 뒤에 유지
+  if (visibleFts.length === 0 || visibleFts.length > favoriteTeams.length) return;
+  const winners = headToHeadWinnerByMatchKey();
+  const placed = new Set();
+  const newOrder = [];
+  for (const ft of visibleFts) {
+    if (placed.has(ft)) continue;
+    newOrder.push(ft);
+    placed.add(ft);
+    const mk = favoriteStatusMatchKey(ft);
+    if (mk && winners.get(mk) === ft) {
+      favoriteTeams.forEach((o) => {
+        if (placed.has(o)) return;
+        if (favoriteStatusMatchKey(o) === mk && o !== ft) {
+          newOrder.push(o);
+          placed.add(o);
+        }
+      });
+    }
+  }
+  favoriteTeams.forEach((o) => {
+    if (!placed.has(o)) newOrder.push(o);
+  });
+  favoriteTeams = newOrder;
   if (PERSIST_FAVORITE_ORDER_AFTER_DRAG) {
     localStorage.setItem(FAVORITE_TEAMS_KEY, JSON.stringify(favoriteTeams));
   }
@@ -2541,6 +3073,7 @@ toggleRankBtn.addEventListener('click', () => {
     setView('my-team');
     return;
   }
+  activateStandingsTab(activeStandingsSport);
   setView('all-rank');
 });
 
@@ -2668,9 +3201,10 @@ function scheduleMidnightRefresh() {
     teamNextGames = {};
     mlbTeams = [];
     allGamesCache = { nba: null, mlb: null, kbo: null };
+    allGamesSeasonPhase = { nba: null, mlb: null };
     soccerGamesCache = {};
     soccerStandingsLoaded = {};
-    loadStandings();
+    loadStandings({ clearNbaCache: true });
     loadTeamGameStatus();
     if (activeGamesSport === 'soccer' && allGamesOpen) {
       SOCCER_LEAGUE_IDS.forEach((lid) => loadAllGames('soccer', lid));
@@ -2698,10 +3232,11 @@ document.addEventListener('visibilitychange', () => resyncScoreboardTimer());
 applyStealthSettings();
 applyI18nStaticDom();
 setLoadingPlaceholders();
+syncNbaStandingsSubtabUi();
 renderTeamCards();               // empty state 초기 동기화
 setView('my-team');              // 항상 홈 화면으로 시작 (팀 없으면 empty state 표시)
 loadStandings();
-setInterval(loadStandings, REFRESH_INTERVAL_MS);
+setInterval(() => loadStandings({ bypassNbaCache: true, clearNbaCache: true }), REFRESH_INTERVAL_MS);
 
 // 관심 등록된 soccer 리그 데이터 선로딩 (지연 로드 — UI 렌더 후)
 const favSoccerLeagues = getSoccerLeagueIdsToPrefetch();

@@ -120,7 +120,8 @@ const SOCCER_LEAGUES = {
   'esp.1':          { name: 'La Liga',   shortName: 'LAL',  emoji: '🇪🇸' },
   'ger.1':          { name: 'Bundesliga',shortName: 'BUN',  emoji: '🇩🇪' },
   'ita.1':          { name: 'Serie A',   shortName: 'SRA',  emoji: '🇮🇹' },
-  'uefa.champions': { name: 'UCL',       shortName: 'UCL',  emoji: '⭐' }
+  'uefa.champions': { name: 'UCL',       shortName: 'UCL',  emoji: '⭐' },
+  'uefa.europa':    { name: 'UEL',       shortName: 'UEL',  emoji: '🟠' }
 };
 
 // 리그별 UEFA/강등 존 (inclusive rank ranges)
@@ -129,7 +130,8 @@ const SOCCER_ZONES = {
   'esp.1':          { ucl:[1,4],  uel:[5,6],   playoff:null,   rel:[18,20] },
   'ger.1':          { ucl:[1,4],  uel:[5,6],   playoff:null,   rel:[16,18] },
   'ita.1':          { ucl:[1,4],  uel:[5,6],   playoff:null,   rel:[18,20] },
-  'uefa.champions': { ucl:[1,8],  uel:null,    playoff:[9,24], rel:[25,36] }
+  'uefa.champions': { ucl:[1,8],  uel:null,    playoff:[9,24], rel:[25,36] },
+  'uefa.europa':    { ucl:[1,8],  uel:null,    playoff:[9,24], rel:[25,36] }
 };
 
 function getSoccerUrls(leagueId, type = 'scoreboard') {
@@ -145,6 +147,7 @@ function getSoccerUrls(leagueId, type = 'scoreboard') {
 // ── 종목별 API 엔드포인트 설정 ──
 const SPORT_CONFIG = {
   nba: {
+    // 기본(레거시) — fetchStandings에서 seasontype 지정 시 getNbaStandingsUrls 사용
     standingsUrls: [
       'https://site.api.espn.com/apis/v2/sports/basketball/nba/standings',
       'https://site.web.api.espn.com/apis/v2/sports/basketball/nba/standings'
@@ -198,6 +201,37 @@ function isTodayKST(isoDateStr) {
     timeZone: 'Asia/Seoul',
     year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date(isoDateStr)) === todayKST();
+}
+
+/**
+ * NBA/MLB: ESPN scoreboard의 day.date(슬레이트)와 kickoff의 KST 날짜가 하루 어긋날 수 있음(심야·플레이인 등).
+ * 이벤트 KST가 오늘이면 포함, 아니어도 슬레이트 일이 KST 오늘이면 같은 응답의 경기는 모두 포함.
+ */
+function eventMatchesScoreboardSlate(ev, scoreboardData, sport) {
+  if (!ev?.date) return false;
+  if (isTodayKST(ev.date)) return true;
+  if (sport !== 'nba' && sport !== 'mlb') return false;
+  const slateDay = scoreboardData?.day?.date;
+  if (slateDay && slateDay === todayKST()) return true;
+  return false;
+}
+
+/** scoreboard leagues[0].season 등 — 플레이인·플옵 구분 표시용 */
+function extractScoreboardSeasonPhase(data, sport) {
+  if (sport !== 'nba' && sport !== 'mlb') return null;
+  const league = data?.leagues?.[0];
+  const s = league?.season || data?.season;
+  if (!s || typeof s !== 'object') return null;
+  const type = s.type;
+  const name = s.name || s.slug;
+  if (type == null && name == null && s.slug == null) return null;
+  return {
+    type,
+    name: name || '',
+    slug: s.slug || '',
+    abbr: s.abbreviation || '',
+    year: s.year
+  };
 }
 
 /** KST 기준 달력 연도 (MLB season=YYYY 등에 사용) */
@@ -470,12 +504,17 @@ function parseEspnStandingsPayload(payload, sport = 'nba') {
     const flatAmerican = americanDivisions.flatMap((d) => d.rows);
     const flatNational = nationalDivisions.flatMap((d) => d.rows);
     if (!flatAmerican.length && !flatNational.length) return null;
+    const standingsSeasonType =
+      confA?.standings?.seasonType
+      ?? confB?.standings?.seasonType
+      ?? payload?.children?.[0]?.standings?.seasonType;
     return {
       eastern: flatAmerican.map((row) => ({ ...row, conference: 'American' })),
       western: flatNational.map((row) => ({ ...row, conference: 'National' })),
       mlbByDivision: { american: americanDivisions, national: nationalDivisions },
       sport,
-      fetchedAt: new Date().toISOString()
+      fetchedAt: new Date().toISOString(),
+      standingsSeasonType: standingsSeasonType != null ? Number(standingsSeasonType) : null
     };
   }
 
@@ -487,11 +526,17 @@ function parseEspnStandingsPayload(payload, sport = 'nba') {
     return null;
   }
 
+  const standingsSeasonType =
+    confA?.standings?.seasonType
+    ?? confB?.standings?.seasonType
+    ?? payload?.children?.[0]?.standings?.seasonType;
+
   return {
     eastern: eastern.map((row) => ({ ...row, conference: config.confLabels[0] })),
     western: western.map((row) => ({ ...row, conference: config.confLabels[1] })),
     sport,
-    fetchedAt: new Date().toISOString()
+    fetchedAt: new Date().toISOString(),
+    standingsSeasonType: standingsSeasonType != null ? Number(standingsSeasonType) : null
   };
 }
 
@@ -554,21 +599,43 @@ async function fetchSoccerStandings(leagueId = 'eng.1') {
   throw new Error(`[soccer:${leagueId}] 모든 순위 소스 실패`);
 }
 
-async function fetchStandings(sport = 'nba') {
+/** ESPN: seasontype 2=정규, 3=포스트시즌(플레이오프) */
+function getNbaStandingsUrls(seasonType = 2) {
+  const y = yearKST();
+  const bust = Date.now();
+  const q = `season=${y}&seasontype=${seasonType}&_=${bust}`;
+  return [
+    `https://site.api.espn.com/apis/v2/sports/basketball/nba/standings?${q}`,
+    `https://site.web.api.espn.com/apis/v2/sports/basketball/nba/standings?${q}`
+  ];
+}
+
+async function fetchStandings(sport = 'nba', options = {}) {
   const config = SPORT_CONFIG[sport] || SPORT_CONFIG.nba;
-  const urls =
-    typeof config.getStandingsUrls === 'function'
-      ? config.getStandingsUrls()
-      : config.standingsUrls;
+  let urls;
+  if (sport === 'nba') {
+    const st =
+      options.nbaSeasonType != null ? Number(options.nbaSeasonType) : 2;
+    urls = getNbaStandingsUrls(st);
+  } else if (typeof config.getStandingsUrls === 'function') {
+    urls = config.getStandingsUrls();
+  } else {
+    urls = config.standingsUrls;
+  }
 
   for (const url of urls) {
     try {
       const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
       const result = parseEspnStandingsPayload(response.data, sport);
-      if (result) return result;   // 유효한 데이터면 즉시 반환
-      // null이면 이 URL은 빈 데이터 → 조용히 다음 URL 시도
+      if (result) {
+        if (sport === 'nba') {
+          const st =
+            options.nbaSeasonType != null ? Number(options.nbaSeasonType) : 2;
+          result.nbaRequestedView = st === 3 ? 'playoff' : 'regular';
+        }
+        return result;
+      }
     } catch (error) {
-      // 네트워크/HTTP 오류만 warn 수준으로 기록
       console.warn(`[standings:${sport}] URL 실패, 다음 소스 시도`, {
         url,
         status: error.response?.status,
@@ -577,8 +644,305 @@ async function fetchStandings(sport = 'nba') {
     }
   }
 
-  // 모든 URL 실패 → 호출부(loadStandings/loadMlbStandings)에서 처리
   throw new Error(`[${sport}] 유효한 순위 데이터를 가져오지 못했습니다`);
+}
+
+// ── NBA 플레이오프 대진 (postseason scoreboard → 시리즈별 집계) ──
+function nbaTeamBriefFromCompetitor(c) {
+  const tm = c?.team || {};
+  const raw = (x) => (x != null && /^[0-9a-fA-F]{6}$/.test(String(x).trim()) ? `#${String(x).trim().toLowerCase()}` : null);
+  return {
+    id: String(tm.id ?? ''),
+    abbr: tm.abbreviation || tm.shortDisplayName || '—',
+    name: tm.shortDisplayName || tm.displayName || '',
+    logo: (tm.logo || tm.logos?.[0]?.href || '').trim(),
+    color: raw(tm.color),
+    altColor: raw(tm.alternateColor)
+  };
+}
+
+function nbaMatchupPairKey(m) {
+  return [m.home.id, m.away.id].sort().join('-');
+}
+
+function nbaRoundSortFromName(roundRaw) {
+  const n = String(roundRaw || '').toLowerCase();
+  if (n.includes('1st round')) return 10;
+  if (n.includes('semifinal') || (n.includes('conf') && n.includes('sem'))) return 20;
+  if (n.includes('conference') && n.includes('final') && !n.includes('1st')) return 30;
+  return 15;
+}
+
+function classifyNbaPlayoffHeadline(headline) {
+  if (!headline || typeof headline !== 'string') return null;
+  if (headline.startsWith('NBA Play-In')) {
+    return {
+      section: 'playin',
+      sort: 0,
+      groupKey: headline,
+      displayTitle: headline.replace(/^NBA Play-In\s*-\s*/i, '').trim()
+    };
+  }
+  if (headline.startsWith('NBA Finals')) {
+    return { section: 'finals', sort: 100, groupKey: 'NBA Finals', displayTitle: 'NBA Finals' };
+  }
+  let m = headline.match(/^(East|West)\s+(.+?)\s*-\s*Game/i);
+  if (!m) {
+    m = headline.match(/^(Eastern|Western)\s+(.+?)\s*-\s*Game/i);
+    if (!m) return null;
+    const confLong = m[1];
+    const conference = confLong.startsWith('East') ? 'East' : 'West';
+    const roundRaw = m[2].trim();
+    const base = nbaRoundSortFromName(roundRaw);
+    const confBias = conference === 'West' ? 0 : 1;
+    return {
+      section: 'conf',
+      sort: base + confBias,
+      groupKey: `${conference}|${roundRaw}`,
+      conference,
+      roundRaw,
+      displayTitle: `${confLong} ${roundRaw}`
+    };
+  }
+  const conference = m[1];
+  const roundRaw = m[2].trim();
+  const base = nbaRoundSortFromName(roundRaw);
+  const confBias = conference === 'West' ? 0 : 1;
+  return {
+    section: 'conf',
+    sort: base + confBias,
+    groupKey: `${conference}|${roundRaw}`,
+    conference,
+    roundRaw,
+    displayTitle: `${conference} ${roundRaw}`
+  };
+}
+
+/** 동·서 같은 단계 라운드를 한 페이지로 묶기 위한 키 */
+function nbaPlayoffMergeBucketKey(meta) {
+  if (!meta) return 'misc';
+  if (meta.section === 'playin') return 'playin';
+  if (meta.section === 'finals') return 'finals';
+  if (meta.section === 'conf') {
+    const rn = String(meta.roundRaw || '').toLowerCase();
+    if (rn.includes('1st round')) return 'r1';
+    if (rn.includes('semifinal') || (rn.includes('conf') && rn.includes('sem'))) return 'r2';
+    if (rn.includes('conference') && rn.includes('final') && !rn.includes('1st')) return 'r3';
+  }
+  return meta.groupKey || 'misc';
+}
+
+/** ESPN이 세미/컨퍼런스 파이널을 아직 안 올린 경우 r1·파이널만 있어 네비가 건너뛰는 것처럼 보임 → 빈 슬롯 삽입 */
+function injectMissingNbaPlayoffRounds(sections) {
+  const canonical = ['playin', 'r1', 'r2', 'r3', 'finals'];
+  const byRound = new Map();
+  const misc = [];
+  for (const s of sections) {
+    if (s.roundId && canonical.includes(s.roundId)) {
+      byRound.set(s.roundId, s);
+    } else {
+      misc.push(s);
+    }
+  }
+  const hasR1 = byRound.has('r1');
+  const hasFinals = byRound.has('finals');
+  const out = [];
+  for (const id of canonical) {
+    if (byRound.has(id)) {
+      out.push(byRound.get(id));
+      continue;
+    }
+    if ((id === 'r2' || id === 'r3') && hasR1 && hasFinals) {
+      out.push({
+        sort: id === 'r2' ? 20 : 30,
+        roundId: id,
+        displayTitle: id,
+        groupKey: id,
+        matchups: [],
+        roundPlaceholder: true
+      });
+    }
+  }
+  return [...out, ...misc].sort((a, b) => {
+    if (a.sort !== b.sort) return a.sort - b.sort;
+    return String(a.groupKey).localeCompare(String(b.groupKey));
+  });
+}
+
+function nbaPlayoffSortForMergeKey(mergeKey, meta) {
+  if (mergeKey === 'playin') return 0;
+  if (mergeKey === 'r1') return 10;
+  if (mergeKey === 'r2') return 20;
+  if (mergeKey === 'r3') return 30;
+  if (mergeKey === 'finals') return 100;
+  return meta?.sort ?? 50;
+}
+
+function mergeNbaRicherMatchup(a, b) {
+  const score = (m) => {
+    let s = (m.winsHome || 0) + (m.winsAway || 0);
+    if (m.home.abbr && m.home.abbr !== 'TBD') s += 5;
+    if (m.away.abbr && m.away.abbr !== 'TBD') s += 5;
+    if (m.summary && !/^Series starts/i.test(m.summary)) s += 2;
+    return s;
+  };
+  return score(b) > score(a) ? b : a;
+}
+
+function extractNbaPlayoffSeriesMatchup(comp) {
+  const series = comp.series;
+  if (!series || series.type !== 'playoff') return null;
+  const competitors = comp.competitors || [];
+  const home = competitors.find((c) => c.homeAway === 'home');
+  const away = competitors.find((c) => c.homeAway === 'away');
+  if (!home?.team || !away?.team) return null;
+
+  const hid = String(home.team.id);
+  const aid = String(away.team.id);
+  let wh = 0;
+  let wa = 0;
+  for (const row of series.competitors || []) {
+    const rid = String(row.id);
+    if (rid === hid) wh = Number(row.wins) || 0;
+    if (rid === aid) wa = Number(row.wins) || 0;
+  }
+  if ((hid === '-1' || hid === '-2') && (aid === '-1' || aid === '-2')) {
+    const s0 = series.competitors?.[0];
+    const s1 = series.competitors?.[1];
+    if (s0 && s1) {
+      wh = Number(s0.wins) || 0;
+      wa = Number(s1.wins) || 0;
+    }
+  }
+
+  return {
+    home: nbaTeamBriefFromCompetitor(home),
+    away: nbaTeamBriefFromCompetitor(away),
+    winsHome: wh,
+    winsAway: wa,
+    summary: series.summary || '',
+    seriesMode: true,
+    tbdSlot:
+      String(home?.team?.abbreviation || '').toUpperCase() === 'TBD' &&
+      String(away?.team?.abbreviation || '').toUpperCase() === 'TBD'
+  };
+}
+
+function extractNbaPlayinSingleGameMatchup(comp) {
+  const competitors = comp.competitors || [];
+  const home = competitors.find((c) => c.homeAway === 'home');
+  const away = competitors.find((c) => c.homeAway === 'away');
+  if (!home?.team?.id || !away?.team?.id) return null;
+  const hs = parseInt(String(home.score ?? ''), 10);
+  const as = parseInt(String(away.score ?? ''), 10);
+  const done = !!comp.status?.type?.completed;
+  return {
+    home: nbaTeamBriefFromCompetitor(home),
+    away: nbaTeamBriefFromCompetitor(away),
+    winsHome: done && hs > as ? 1 : 0,
+    winsAway: done && as > hs ? 1 : 0,
+    summary: comp.status?.type?.shortDetail || comp.status?.type?.detail || '',
+    seriesMode: false,
+    homePts: Number.isFinite(hs) ? hs : null,
+    awayPts: Number.isFinite(as) ? as : null
+  };
+}
+
+function parseNbaPlayoffScoreboardEvents(events) {
+  const buckets = new Map();
+
+  for (const ev of events || []) {
+    const comp = ev.competitions?.[0];
+    if (!comp) continue;
+    const headline = comp.notes?.find((n) => n.type === 'event')?.headline;
+    if (!headline) continue;
+    const meta = classifyNbaPlayoffHeadline(headline);
+    if (!meta) continue;
+
+    let matchup = null;
+    if (meta.section === 'playin') {
+      matchup = extractNbaPlayinSingleGameMatchup(comp);
+    } else if (comp.series && comp.series.type === 'playoff') {
+      matchup = extractNbaPlayoffSeriesMatchup(comp);
+    } else {
+      matchup = extractNbaPlayinSingleGameMatchup(comp);
+    }
+    if (!matchup) continue;
+
+    if (meta.conference) {
+      matchup.sourceConference = meta.conference;
+      matchup.sourceRoundRaw = meta.roundRaw;
+    }
+    if (matchup.tbdSlot && (ev.shortName || ev.name)) {
+      matchup.eventHint = String(ev.shortName || ev.name || '').trim();
+    }
+
+    const mergeKey = nbaPlayoffMergeBucketKey(meta);
+    const sortVal = nbaPlayoffSortForMergeKey(mergeKey, meta);
+    const known = ['playin', 'r1', 'r2', 'r3', 'finals'].includes(mergeKey);
+
+    if (!buckets.has(mergeKey)) {
+      buckets.set(mergeKey, {
+        sort: sortVal,
+        roundId: known ? mergeKey : 'misc',
+        miscLabel: known ? null : meta.displayTitle,
+        groupKey: mergeKey,
+        matchups: new Map()
+      });
+    } else {
+      const b = buckets.get(mergeKey);
+      b.sort = Math.min(b.sort, sortVal);
+      if (!known && !b.miscLabel) b.miscLabel = meta.displayTitle;
+    }
+    const b = buckets.get(mergeKey);
+    const pk = nbaMatchupPairKey(matchup);
+    const prev = b.matchups.get(pk);
+    b.matchups.set(pk, prev ? mergeNbaRicherMatchup(prev, matchup) : matchup);
+  }
+
+  const sections = injectMissingNbaPlayoffRounds(
+    [...buckets.values()]
+      .sort((a, b) => a.sort - b.sort || String(a.groupKey).localeCompare(String(b.groupKey)))
+      .map((bucket) => ({
+        sort: bucket.sort,
+        roundId: bucket.roundId,
+        displayTitle: bucket.miscLabel || bucket.groupKey,
+        groupKey: bucket.groupKey,
+        matchups: [...bucket.matchups.values()].sort((m1, m2) => {
+          const w = (x) => (x.sourceConference === 'West' ? 0 : x.sourceConference === 'East' ? 1 : 2);
+          const cw = w(m1) - w(m2);
+          if (cw !== 0) return cw;
+          return String(m1.home.abbr).localeCompare(String(m2.home.abbr), 'en');
+        })
+      }))
+  );
+
+  return { sections };
+}
+
+async function fetchNbaPlayoffBracket() {
+  const y = yearKST();
+  const dates = `${y}0401-${y}0701`;
+  const qs = `dates=${dates}&seasontype=3&limit=500`;
+  const urls = [
+    `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?${qs}`,
+    `https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?${qs}`
+  ];
+
+  for (const url of urls) {
+    try {
+      const response = await axios.get(url, { timeout: 22000, headers: HTTP_HEADERS });
+      const events = response.data?.events || [];
+      const parsed = parseNbaPlayoffScoreboardEvents(events);
+      if (parsed.sections.length) {
+        return { ...parsed, fetchedAt: new Date().toISOString() };
+      }
+    } catch (error) {
+      console.warn('[nba:playoff-bracket] 소스 실패', { url, msg: error.message });
+    }
+  }
+
+  return { sections: [], fetchedAt: null, error: 'No playoff events' };
 }
 
 // ── MLB 투수 정보 추출 헬퍼 ──
@@ -646,17 +1010,23 @@ function mapTeamGameStatus(event, teamId, sport = 'nba') {
     }
   }
 
+  const matchKey = event?.id != null ? String(event.id) : '';
+
   if (state === 'in') {
     return {
       mode: 'live',
       myScore, oppScore, myAbbr, oppAbbr,
       period: shortDetail || detail,
       isHome, pitcher, venue, venueCity,
-      scoreKey: `${myScore}-${oppScore}`
+      scoreKey: `${myScore}-${oppScore}`,
+      matchKey
     };
   }
   if (state === 'pre') {
-    return { mode: 'pre', myAbbr, oppAbbr, opponentName, isHome, startDateISO: event.date, pitcher, venue, venueCity };
+    return {
+      mode: 'pre', myAbbr, oppAbbr, opponentName, isHome, startDateISO: event.date, pitcher, venue, venueCity,
+      matchKey
+    };
   }
   if (state === 'post') {
     const myWon = Number(myScore) > Number(oppScore);
@@ -665,7 +1035,8 @@ function mapTeamGameStatus(event, teamId, sport = 'nba') {
       myScore, oppScore, myAbbr, oppAbbr,
       result: myWon ? 'W' : 'L',
       isHome, pitcher, venue, venueCity,
-      scoreKey: `${myScore}-${oppScore}`
+      scoreKey: `${myScore}-${oppScore}`,
+      matchKey
     };
   }
 
@@ -690,7 +1061,9 @@ async function fetchTeamGameStatus(teamId, sport = 'nba', leagueId = null) {
     try {
       const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
       const allEvents = Array.isArray(response.data?.events) ? response.data.events : [];
-      const events = allEvents.filter((ev) => isTodayKST(ev.date));
+      const events = allEvents.filter((ev) =>
+        eventMatchesScoreboardSlate(ev, response.data, sport)
+      );
 
       if (!events.length) {
         return { mode: 'none', title: '오늘 경기 없음', detail: '오늘 예정된 경기가 없습니다.' };
@@ -787,7 +1160,9 @@ async function fetchNextGame(teamId, sport = 'nba', leagueId = null) {
 
     const next = events.find((ev) => {
       const state = ev.competitions?.[0]?.status?.type?.state;
-      return state === 'pre' && new Date(ev.date) > now;
+      if (!state || !ev.date) return false;
+      if (new Date(ev.date) <= now) return false;
+      return state === 'pre' || state === 'scheduled';
     });
 
     if (!next) return { seasonEnd: true };
@@ -912,14 +1287,82 @@ const UCL_ROUNDS = [
   { key: 'final',     name: 'Final',                   nameKo: '결승',        start: '2026-05-08', end: '2026-07-01' }
 ];
 
-function getCurrentUclRoundKey() {
-  const now = todayKST(); // 'YYYY-MM-DD'
-  for (const r of UCL_ROUNDS) {
+// UEL KO 일정은 UCL과 비슷한 시기 — 라운드 구간은 UCL과 동일하게 두고 이벤트 날짜로 필터
+const UEL_ROUNDS = [
+  { key: 'playoffs',  name: 'Knockout Round Playoffs', nameKo: '플레이오프',  start: '2026-01-30', end: '2026-02-27' },
+  { key: 'r16',       name: 'Round of 16',             nameKo: '16강',        start: '2026-02-27', end: '2026-03-20' },
+  { key: 'qf',        name: 'Quarterfinals',           nameKo: '8강',         start: '2026-03-20', end: '2026-04-17' },
+  { key: 'sf',        name: 'Semifinals',              nameKo: '4강',         start: '2026-04-17', end: '2026-05-08' },
+  { key: 'final',     name: 'Final',                   nameKo: '결승',        start: '2026-05-08', end: '2026-07-01' }
+];
+
+function getCurrentUefaCupRoundKey(roundsDef) {
+  const now = todayKST();
+  for (const r of roundsDef) {
     if (now >= r.start && now < r.end) return r.key;
   }
-  // 시즌 종료 이후면 마지막 라운드
-  if (todayKST() >= UCL_ROUNDS[UCL_ROUNDS.length - 1].end) return UCL_ROUNDS[UCL_ROUNDS.length - 1].key;
+  if (now >= roundsDef[roundsDef.length - 1].end) return roundsDef[roundsDef.length - 1].key;
   return null;
+}
+
+/** 스코어보드 이벤트가 있을 때 탭 진입 시 보여줄 라운드 (진행·오늘·예정·최근 순) */
+function pickDefaultUefaCupViewRoundKey(roundMap, roundOrder, roundsDef, todayStr) {
+  if (!roundOrder.length) return null;
+  const cal = getCurrentUefaCupRoundKey(roundsDef);
+  if (cal && roundOrder.includes(cal)) return cal;
+
+  for (const key of roundOrder) {
+    const mus = roundMap[key]?.matchups || [];
+    for (const mu of mus) {
+      for (const leg of [mu.leg1, mu.leg2]) {
+        if (leg?.state === 'in') return key;
+      }
+    }
+  }
+
+  for (const key of roundOrder) {
+    const mus = roundMap[key]?.matchups || [];
+    let minD = null;
+    let maxD = null;
+    for (const mu of mus) {
+      for (const leg of [mu.leg1, mu.leg2]) {
+        if (!leg?.date) continue;
+        const d = leg.date.slice(0, 10);
+        if (!minD || d < minD) minD = d;
+        if (!maxD || d > maxD) maxD = d;
+      }
+    }
+    if (minD && maxD && todayStr >= minD && todayStr <= maxD) return key;
+  }
+
+  let bestKey = null;
+  let bestTs = null;
+  for (const key of roundOrder) {
+    const mus = roundMap[key]?.matchups || [];
+    for (const mu of mus) {
+      for (const leg of [mu.leg1, mu.leg2]) {
+        if (leg?.state === 'pre' && leg.date) {
+          const ts = new Date(leg.date).getTime();
+          if (!Number.isNaN(ts) && (bestTs == null || ts < bestTs)) {
+            bestTs = ts;
+            bestKey = key;
+          }
+        }
+      }
+    }
+  }
+  if (bestKey) return bestKey;
+
+  for (let i = roundOrder.length - 1; i >= 0; i--) {
+    const key = roundOrder[i];
+    const mus = roundMap[key]?.matchups || [];
+    const hasDone = mus.some((mu) =>
+      [mu.leg1, mu.leg2].some((l) => l && (l.state === 'post' || l.state === 'in'))
+    );
+    if (hasDone) return key;
+  }
+
+  return roundOrder[0];
 }
 
 function dateToYYYYMMDD(isoStr) {
@@ -1040,20 +1483,16 @@ function parseUclMatchups(events) {
   return matchups;
 }
 
-async function fetchUclTournament() {
-  // 전체 시즌 토너먼트 날짜 범위로 조회 (2026-01-30 ~ 2026-07-01)
-  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard?dates=20260130-20260701`;
-
+async function fetchUefaCupScoreboardTournament(leagueId, roundsDef, datesParam, logTag) {
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/scoreboard?dates=${datesParam}`;
   try {
     const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
     const allEvents = Array.isArray(response.data?.events) ? response.data.events : [];
-
     if (!allEvents.length) return null;
 
-    // 라운드별로 이벤트 분류
     const roundMap = {};
-    for (const r of UCL_ROUNDS) {
-      const evs = allEvents.filter(ev => {
+    for (const r of roundsDef) {
+      const evs = allEvents.filter((ev) => {
         const d = ev.date?.slice(0, 10);
         return d >= r.start && d < r.end;
       });
@@ -1067,17 +1506,26 @@ async function fetchUclTournament() {
       }
     }
 
-    const currentKey = getCurrentUclRoundKey();
-
+    const roundOrder = roundsDef.filter((r) => roundMap[r.key]).map((r) => r.key);
+    const viewKey = pickDefaultUefaCupViewRoundKey(roundMap, roundOrder, roundsDef, todayKST());
     return {
+      leagueId,
       rounds: roundMap,
-      currentRoundKey: currentKey,
-      roundOrder: UCL_ROUNDS.filter(r => roundMap[r.key]).map(r => r.key)
+      currentRoundKey: viewKey,
+      roundOrder
     };
   } catch (err) {
-    console.error('[ucl:tournament] fetch 실패', err.message);
+    console.error(`[${logTag}:tournament] fetch 실패`, err.message);
     return null;
   }
+}
+
+async function fetchUclTournament() {
+  return fetchUefaCupScoreboardTournament('uefa.champions', UCL_ROUNDS, '20260130-20260701', 'ucl');
+}
+
+async function fetchUelTournament() {
+  return fetchUefaCupScoreboardTournament('uefa.europa', UEL_ROUNDS, '20260130-20260701', 'uel');
 }
 
 async function fetchAllGames(sport = 'nba', leagueId = null) {
@@ -1085,20 +1533,23 @@ async function fetchAllGames(sport = 'nba', leagueId = null) {
   const urls = (sport === 'soccer' && leagueId)
     ? getSoccerUrls(leagueId, 'scoreboard')
     : (SPORT_CONFIG[sport]?.scoreboardUrls || []);
-  if (!urls.length) return [];
+  if (!urls.length) return { games: [], seasonPhase: null };
   for (const url of urls) {
     try {
       const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
-      const events = Array.isArray(response.data?.events) ? response.data.events : [];
-      return events
-        .filter((ev) => isTodayKST(ev.date))
-        .map(mapGameRow)
-        .filter(Boolean);
+      const data = response.data;
+      const events = Array.isArray(data?.events) ? data.events : [];
+      const filtered = (sport === 'soccer' && leagueId)
+        ? events.filter((ev) => isTodayKST(ev.date))
+        : events.filter((ev) => eventMatchesScoreboardSlate(ev, data, sport));
+      const games = filtered.map(mapGameRow).filter(Boolean);
+      const seasonPhase = extractScoreboardSeasonPhase(data, sport);
+      return { games, seasonPhase };
     } catch (error) {
       console.error(`[allgames:${sport}:${leagueId}] 실패`, { url, message: error.message });
     }
   }
-  return [];
+  return { games: [], seasonPhase: null };
 }
 
 // ── KBO (네이버 스포츠 API) ──
@@ -1167,13 +1618,16 @@ async function fetchKboTeamStatus(teamCode) {
 
   if (isCanceled) return { mode: 'none', myAbbr, oppAbbr, myLogo, oppLogo };
 
+  const matchKey = game.gameId != null ? String(game.gameId) : '';
+
   if (status === 'BEFORE' || status === 'READY') {
     return {
       mode: 'pre',
       myAbbr, oppAbbr, myLogo, oppLogo,
       opponentName: oppTeam?.name || oppCode,
       isHome,
-      startDateISO: game.gameDateTime
+      startDateISO: game.gameDateTime,
+      matchKey
     };
   }
   // 네이버 KBO: 진행 중은 statusCode "STARTED" (이닝 등은 statusInfo)
@@ -1184,7 +1638,8 @@ async function fetchKboTeamStatus(teamCode) {
       myScore: String(myScore), oppScore: String(oppScore),
       isHome,
       period: game.statusInfo || 'LIVE',
-      scoreKey: `${myScore}-${oppScore}`
+      scoreKey: `${myScore}-${oppScore}`,
+      matchKey
     };
   }
   if (status === 'RESULT' || status === 'FINAL') {
@@ -1196,7 +1651,8 @@ async function fetchKboTeamStatus(teamCode) {
       myScore: String(myScore), oppScore: String(oppScore),
       isHome,
       result: isDraw ? 'D' : (myWon ? 'W' : 'L'),
-      scoreKey: `${myScore}-${oppScore}`
+      scoreKey: `${myScore}-${oppScore}`,
+      matchKey
     };
   }
   return { mode: 'none' };
@@ -1263,11 +1719,19 @@ app.whenReady().then(() => {
     BrowserWindow.fromWebContents(event.sender)?.minimize();
   });
 
-  ipcMain.handle('standings:fetch', async (_, sport = 'nba') => {
+  ipcMain.handle('standings:fetch', async (_, sport = 'nba', options = {}) => {
     try {
-      return await fetchStandings(sport);
+      return await fetchStandings(sport, options && typeof options === 'object' ? options : {});
     } catch (error) {
       return { error: error.message || 'Unknown error' };
+    }
+  });
+
+  ipcMain.handle('nba:fetchPlayoffBracket', async () => {
+    try {
+      return await fetchNbaPlayoffBracket();
+    } catch (error) {
+      return { sections: [], error: error.message || 'Unknown error', fetchedAt: null };
     }
   });
 
@@ -1293,6 +1757,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('ucl:fetchTournament', async () => {
     return fetchUclTournament();
+  });
+
+  ipcMain.handle('uel:fetchTournament', async () => {
+    return fetchUelTournament();
   });
 
   ipcMain.handle('kbo:fetchTeamStatus', async (_, teamCode) => {

@@ -1,7 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('standingsAPI', {
-  fetchStandings:       (sport = 'nba') => ipcRenderer.invoke('standings:fetch', sport),
+  fetchStandings:       (sport = 'nba', options = {}) =>
+    ipcRenderer.invoke('standings:fetch', sport, options),
+  fetchNbaPlayoffBracket: () => ipcRenderer.invoke('nba:fetchPlayoffBracket'),
   fetchScoreboardByTeam:(teamId, sport = 'nba', leagueId = null) =>
     ipcRenderer.invoke('scoreboard:fetchByTeam', teamId, sport, leagueId),
   fetchNextGame:        (teamId, sport = 'nba', leagueId = null) =>
@@ -14,8 +16,9 @@ contextBridge.exposeInMainWorld('standingsAPI', {
     ipcRenderer.invoke('standings:fetchSoccer', leagueId),
   // 하위 호환
   fetchEplStandings:    () => ipcRenderer.invoke('standings:fetchEpl'),
-  // UCL 토너먼트 대진표
+  // UCL / UEL 토너먼트 대진표
   fetchUclTournament:   () => ipcRenderer.invoke('ucl:fetchTournament'),
+  fetchUelTournament:   () => ipcRenderer.invoke('uel:fetchTournament'),
   // KBO
   kboFetchTeamStatus:   (teamCode) => ipcRenderer.invoke('kbo:fetchTeamStatus', teamCode),
   kboFetchNextGame:     (teamCode) => ipcRenderer.invoke('kbo:fetchNextGame', teamCode),
