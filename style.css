@@ -1820,15 +1820,13 @@ h1 {
   min-height: 0;
 }
 
-/* NBA 플옵: UCL 토너먼트 탭과 동일 ucl-* 마크업 — 스크롤 영역만 위젯에 맞게 제한 */
+/* NBA 플옵: ucl-* 마크업 — 높이 상한 제거, 긴 목록은 .widget-body 스크롤로 처리 */
 .tables > .nba-playoff-bracket {
   grid-column: 1 / -1;
   min-height: 0;
-  max-height: min(52vh, 380px);
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: visible;
   padding: 2px 0 4px;
-  scrollbar-width: thin;
 }
 
 .tables > .nba-playoff-bracket.hidden {
