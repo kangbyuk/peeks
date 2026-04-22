@@ -105,8 +105,9 @@
           <div class="settings-teams-toolbar">
             <div class="sport-tabs">
               <button class="sport-tab active" data-sport="nba">🏀 NBA</button>
-              <button class="sport-tab" data-sport="baseball">⚾ 야구</button>
+              <button class="sport-tab" data-sport="baseball">⚾ baseball</button>
               <button class="sport-tab" data-sport="soccer">⚽ Soccer</button>
+              <button class="sport-tab" data-sport="worldcup">🏆 WC</button>
             </div>
             <div class="team-search-wrap">
               <span class="team-search-icon">🔍</span>
@@ -134,6 +135,9 @@
                 <button class="soccer-setup-tab" data-league="ita.1">Serie A</button>
               </div>
               <div id="soccer-checkbox-list" class="team-checkbox-list"></div>
+            </div>
+            <div id="worldcup-setup-section" class="sport-list hidden">
+              <div id="worldcup-checkbox-list" class="team-checkbox-list"></div>
             </div>
           </div>
           <div class="settings-teams-footer">
@@ -165,6 +169,7 @@
               <button class="games-filter-btn active" data-games-sport="nba">🏀</button>
               <button class="games-filter-btn" data-games-sport="baseball">⚾</button>
               <button class="games-filter-btn" data-games-sport="soccer">⚽</button>
+              <button class="games-filter-btn games-filter-btn--wc" data-games-sport="worldcup" title="FIFA World Cup">🏆</button>
             </div>
           </div>
           <!-- 야구 MLB/KBO 서브탭 (⚾ 선택 시 표시) -->
@@ -189,7 +194,8 @@
         <div class="standings-sport-tabs">
           <button class="standings-tab active" data-standings="nba">🏀 NBA</button>
           <button class="standings-tab" data-standings="mlb">⚾ MLB</button>
-          <button class="standings-tab" data-standings="soccer">⚽</button>
+          <button class="standings-tab" data-standings="soccer">⚽ Soccer</button>
+          <button class="standings-tab standings-tab--wc" data-standings="worldcup" title="FIFA World Cup">🏆 WC</button>
         </div>
         <!-- NBA: 플레이오프 / 정규시즌 (🏀 선택 시) -->
         <div id="nba-standings-subtabs" class="nba-standings-subtabs soccer-standings-subtabs hidden">
@@ -274,6 +280,16 @@
               <tbody id="soccer-standings-body"></tbody>
             </table>
           </div>
+        </div>
+
+        <!-- FIFA World Cup: 조별 순위 / 토너먼트 -->
+        <div id="worldcup-tables" class="tables tables--worldcup hidden">
+          <div id="worldcup-standings-subtabs" class="soccer-standings-subtabs wc-standings-subtabs">
+            <button type="button" class="wc-std-tab active" data-wc-standings="groups" data-i18n="worldcup.tabGroups">조별 순위</button>
+            <button type="button" class="wc-std-tab" data-wc-standings="knockout" data-i18n="worldcup.tabKnockout">토너먼트</button>
+          </div>
+          <div id="worldcup-groups-wrap" class="worldcup-groups-wrap epl-standings-wrap"></div>
+          <div id="worldcup-knockout-wrap" class="worldcup-knockout-wrap epl-standings-wrap hidden"></div>
         </div>
       </section>
 

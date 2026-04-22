@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('standingsAPI', {
   // UCL / UEL 토너먼트 대진표
   fetchUclTournament:   () => ipcRenderer.invoke('ucl:fetchTournament'),
   fetchUelTournament:   () => ipcRenderer.invoke('uel:fetchTournament'),
+  fetchWorldCupTournament: () => ipcRenderer.invoke('wc:fetchTournament'),
   // KBO
   kboFetchTeamStatus:   (teamCode) => ipcRenderer.invoke('kbo:fetchTeamStatus', teamCode),
   kboFetchNextGame:     (teamCode) => ipcRenderer.invoke('kbo:fetchNextGame', teamCode),

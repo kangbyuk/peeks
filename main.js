@@ -121,8 +121,12 @@ const SOCCER_LEAGUES = {
   'ger.1':          { name: 'Bundesliga',shortName: 'BUN',  emoji: '🇩🇪' },
   'ita.1':          { name: 'Serie A',   shortName: 'SRA',  emoji: '🇮🇹' },
   'uefa.champions': { name: 'UCL',       shortName: 'UCL',  emoji: '⭐' },
-  'uefa.europa':    { name: 'UEL',       shortName: 'UEL',  emoji: '🟠' }
+  'uefa.europa':    { name: 'UEL',       shortName: 'UEL',  emoji: '🟠' },
+  'fifa.world':     { name: 'FIFA World Cup', shortName: 'WC', emoji: '🏆' }
 };
+
+/** ESPN 축구 리그 id — IPC에서 sport: worldcup 과 매핑 */
+const WC_LEAGUE_ID = 'fifa.world';
 
 // 리그별 UEFA/강등 존 (inclusive rank ranges)
 const SOCCER_ZONES = {
@@ -577,6 +581,46 @@ async function fetchSoccerStandings(leagueId = 'eng.1') {
     try {
       const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
       const payload  = response.data;
+
+      // FIFA World Cup: 조별(children) — 단일 standings.entries 가 아님
+      if (leagueId === WC_LEAGUE_ID) {
+        const children = payload?.children;
+        if (!Array.isArray(children) || !children.length) {
+          throw new Error('[fifa.world] children 없음');
+        }
+        const worldCupGroups = [];
+        const teamIdSeen = new Set();
+        const allTable = [];
+        for (const ch of children) {
+          const entries = ch?.standings?.entries;
+          if (!Array.isArray(entries) || !entries.length) continue;
+          const gName = ch.name || ch.displayName || ch.abbreviation || 'Group';
+          const gId = String(ch.id ?? ch.uid ?? gName);
+          const table = mapSoccerRows(entries, leagueId).map((row) => ({
+            ...row,
+            conference: gName,
+            groupName: gName,
+            groupId: gId
+          }));
+          worldCupGroups.push({ groupId: gId, groupName: gName, table });
+          for (const row of table) {
+            if (teamIdSeen.has(row.teamId)) continue;
+            teamIdSeen.add(row.teamId);
+            allTable.push(row);
+          }
+        }
+        if (!worldCupGroups.length) throw new Error('[fifa.world] 조별 순위 없음');
+        const teams = allTable.map((r) => ({
+          id: r.teamId, name: r.team, abbr: r.abbr, logo: r.logo
+        }));
+        return {
+          table: allTable,
+          teams,
+          worldCupGroups,
+          leagueId,
+          fetchedAt: new Date().toISOString()
+        };
+      }
 
       const entries =
         payload?.children?.[0]?.standings?.entries ||
@@ -1050,6 +1094,7 @@ async function fetchTeamGameStatus(teamId, sport = 'nba', leagueId = null) {
 
   // 하위 호환: sport:'epl' → sport:'soccer', leagueId:'eng.1'
   if (sport === 'epl') { sport = 'soccer'; leagueId = leagueId || 'eng.1'; }
+  if (sport === 'worldcup') { sport = 'soccer'; leagueId = leagueId || WC_LEAGUE_ID; }
 
   const scoreboardUrls = (sport === 'soccer' && leagueId)
     ? getSoccerUrls(leagueId, 'scoreboard')
@@ -1101,43 +1146,105 @@ async function fetchTeamGameStatus(teamId, sport = 'nba', leagueId = null) {
   };
 }
 
-/** 축구: 팀 정보 API의 nextEvent 필드로 다음 경기 추출 */
-async function fetchNextGameSoccer(teamId, leagueId) {
-  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/teams/${teamId}`;
-  const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
-  const nextEvents = Array.isArray(response.data?.team?.nextEvent) ? response.data.team.nextEvent : [];
-  const now = new Date();
-
-  const next = nextEvents.find((ev) => {
-    const state = ev.competitions?.[0]?.status?.type?.state;
-    return state === 'pre' && new Date(ev.date) > now;
-  });
-
-  if (!next) return { seasonEnd: true };
-
-  const competition = next.competitions?.[0];
+/** 스코어보드/팀 API 공통: 이벤트 → 다음 경기 응답 */
+function soccerNextGameResultFromEvent(ev, teamId) {
+  const competition = ev.competitions?.[0];
   const competitors = competition?.competitors || [];
-  const myCompetitor = competitors.find((c) => String(c.id) === String(teamId));
-  const opp = competitors.find((c) => String(c.id) !== String(teamId));
-
+  const myCompetitor = competitors.find((c) => String(c.team?.id) === String(teamId));
+  const opp = competitors.find((c) => String(c.team?.id) !== String(teamId));
+  if (!myCompetitor || !opp) return null;
   return {
-    date: next.date,
-    isHome: myCompetitor?.homeAway === 'home',
+    date: ev.date,
+    isHome: myCompetitor.homeAway === 'home',
     opponent: {
       name:
-        opp?.team?.displayName
-        || opp?.team?.shortDisplayName
-        || opp?.team?.name
+        opp.team?.displayName
+        || opp.team?.shortDisplayName
+        || opp.team?.name
         || '상대팀',
-      abbreviation: opp?.team?.abbreviation || opp?.team?.shortDisplayName || '',
-      logo: opp?.team?.logos?.[0]?.href || opp?.team?.logo || ''
+      abbreviation: opp.team?.abbreviation || opp.team?.shortDisplayName || '',
+      logo: opp.team?.logos?.[0]?.href || opp.team?.logo || ''
     }
   };
+}
+
+/**
+ * 팀 API의 nextEvent가 비어 있는 경우가 많음(특히 fifa.world 국가대표).
+ * 스코어보드 기간 조회로 미래 일정을 보완한다.
+ */
+async function fetchNextGameSoccerScoreboardFallback(teamId, leagueId) {
+  const now = new Date();
+  let datesParam;
+  if (leagueId === WC_LEAGUE_ID) {
+    const y = yearKST();
+    datesParam = `${y}0601-${y}0731`;
+  } else {
+    const start = todayKST().replace(/-/g, '');
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 200);
+    const end = endDate.toISOString().slice(0, 10).replace(/-/g, '');
+    datesParam = `${start}-${end}`;
+  }
+  const paths = [
+    `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/scoreboard?dates=${datesParam}`,
+    `https://site.web.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/scoreboard?dates=${datesParam}`
+  ];
+  for (const url of paths) {
+    try {
+      const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
+      const events = Array.isArray(response.data?.events) ? response.data.events : [];
+      const upcoming = events
+        .filter((ev) => {
+          const comps = ev.competitions?.[0]?.competitors || [];
+          if (!comps.some((c) => String(c.team?.id) === String(teamId))) return false;
+          const st = ev.status?.type?.state;
+          if (st === 'post') return false;
+          return new Date(ev.date) > now;
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      const pick = upcoming[0];
+      if (pick) {
+        const mapped = soccerNextGameResultFromEvent(pick, teamId);
+        if (mapped) return mapped;
+      }
+    } catch (e) {
+      console.warn('[schedule:soccer:scoreboard-fallback] 실패', { url, message: e.message });
+    }
+  }
+  return { seasonEnd: true };
+}
+
+/** 축구: 팀 정보 API의 nextEvent → 없으면 스코어보드 폴백 */
+async function fetchNextGameSoccer(teamId, leagueId) {
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/teams/${teamId}`;
+  try {
+    const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
+    const nextEvents = Array.isArray(response.data?.team?.nextEvent) ? response.data.team.nextEvent : [];
+    const now = new Date();
+
+    const next = nextEvents.find((ev) => {
+      const state = ev.competitions?.[0]?.status?.type?.state;
+      const d = new Date(ev.date);
+      return (state === 'pre' || state === 'scheduled') && d > now;
+    });
+
+    if (next) {
+      const mapped = soccerNextGameResultFromEvent(next, teamId);
+      if (mapped) return mapped;
+    }
+  } catch (error) {
+    console.error(`[schedule:soccer:${leagueId}] 팀 nextEvent 조회 실패`, {
+      teamId, message: error.message, status: error.response?.status
+    });
+  }
+
+  return fetchNextGameSoccerScoreboardFallback(teamId, leagueId);
 }
 
 async function fetchNextGame(teamId, sport = 'nba', leagueId = null) {
   if (!teamId) return null;
   if (sport === 'epl') { sport = 'soccer'; leagueId = leagueId || 'eng.1'; }
+  if (sport === 'worldcup') { sport = 'soccer'; leagueId = leagueId || WC_LEAGUE_ID; }
 
   // 축구: nextEvent 필드를 가진 팀 정보 API 사용 (schedule 엔드포인트는 미래 일정 미포함)
   if (sport === 'soccer' && leagueId) {
@@ -1294,6 +1401,16 @@ const UEL_ROUNDS = [
   { key: 'qf',        name: 'Quarterfinals',           nameKo: '8강',         start: '2026-03-20', end: '2026-04-17' },
   { key: 'sf',        name: 'Semifinals',              nameKo: '4강',         start: '2026-04-17', end: '2026-05-08' },
   { key: 'final',     name: 'Final',                   nameKo: '결승',        start: '2026-05-08', end: '2026-07-01' }
+];
+
+// 2026 FIFA World Cup (48팀) — 날짜 구간은 스코어보드 이벤트 분류용(대략적)
+const WC_ROUNDS = [
+  { key: 'groups', name: 'Group Stage', nameKo: '조별리그', start: '2026-06-11', end: '2026-06-28' },
+  { key: 'r32',    name: 'Round of 32', nameKo: '32강',     start: '2026-06-28', end: '2026-07-04' },
+  { key: 'r16',    name: 'Round of 16', nameKo: '16강',     start: '2026-07-04', end: '2026-07-09' },
+  { key: 'qf',     name: 'Quarterfinals', nameKo: '8강',    start: '2026-07-09', end: '2026-07-13' },
+  { key: 'sf',     name: 'Semifinals', nameKo: '4강',       start: '2026-07-13', end: '2026-07-18' },
+  { key: 'final',  name: 'Final', nameKo: '결승',          start: '2026-07-18', end: '2026-07-22' }
 ];
 
 function getCurrentUefaCupRoundKey(roundsDef) {
@@ -1528,8 +1645,13 @@ async function fetchUelTournament() {
   return fetchUefaCupScoreboardTournament('uefa.europa', UEL_ROUNDS, '20260130-20260701', 'uel');
 }
 
+async function fetchWorldCupTournament() {
+  return fetchUefaCupScoreboardTournament('fifa.world', WC_ROUNDS, '20260601-20260725', 'wc');
+}
+
 async function fetchAllGames(sport = 'nba', leagueId = null) {
   if (sport === 'epl') { sport = 'soccer'; leagueId = leagueId || 'eng.1'; }
+  if (sport === 'worldcup') { sport = 'soccer'; leagueId = WC_LEAGUE_ID; }
   const urls = (sport === 'soccer' && leagueId)
     ? getSoccerUrls(leagueId, 'scoreboard')
     : (SPORT_CONFIG[sport]?.scoreboardUrls || []);
@@ -1761,6 +1883,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('uel:fetchTournament', async () => {
     return fetchUelTournament();
+  });
+
+  ipcMain.handle('wc:fetchTournament', async () => {
+    return fetchWorldCupTournament();
   });
 
   ipcMain.handle('kbo:fetchTeamStatus', async (_, teamCode) => {
