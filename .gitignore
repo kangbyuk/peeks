@@ -26,6 +26,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# 로컬 CLI 바이너리(다운로드용; 저장소에 포함하지 않음)
+.tools/
+
 # 임시 파일
 *.tmp
 *.temp
