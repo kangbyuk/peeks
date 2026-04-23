@@ -185,6 +185,7 @@
             <button class="soccer-games-tab" data-league="ita.1">Serie A</button>
             <button class="soccer-games-tab" data-league="uefa.champions">UCL</button>
             <button class="soccer-games-tab" data-league="uefa.europa">UEL</button>
+            <button class="soccer-games-tab" data-league="eng.fa" data-i18n-aria="aria.faCupGames" aria-label="FA Cup">FA</button>
           </div>
           <div id="all-games-list" class="all-games-list"></div>
         </div>
@@ -210,6 +211,7 @@
           <button class="soccer-std-tab" data-league="ita.1">Serie A</button>
           <button class="soccer-std-tab" data-league="uefa.champions">UCL</button>
           <button class="soccer-std-tab" data-league="uefa.europa">UEL</button>
+          <button class="soccer-std-tab" data-league="eng.fa" data-i18n-aria="aria.faCupStandings" aria-label="FA Cup">FA</button>
         </div>
 
         <!-- NBA 순위 / 플레이오프 대진 -->
@@ -250,16 +252,33 @@
           </div>
         </div>
 
-        <!-- MLB 순위 (리그 → East/Central/West 지구별) -->
+        <!-- MLB 순위: 지구별 / 리그 전체 -->
+        <div id="mlb-standings-subtabs" class="nba-standings-subtabs soccer-standings-subtabs hidden">
+          <button type="button" class="mlb-std-tab soccer-std-tab active" data-mlb-standings="division" data-i18n="standings.mlbDivisions">지구별</button>
+          <button type="button" class="mlb-std-tab soccer-std-tab" data-mlb-standings="league" data-i18n="standings.mlbLeague">리그 전체</button>
+        </div>
+        <p id="mlb-standings-legend" class="standings-footnote mlb-standings-legend hidden" data-i18n="standings.mlbLegend"></p>
         <div id="mlb-tables" class="tables tables--mlb hidden">
-          <article class="panel mlb-league-panel">
-            <h2 data-i18n="table.american">American</h2>
-            <div id="mlb-american-divisions" class="mlb-divisions-wrap"></div>
-          </article>
-          <article class="panel mlb-league-panel">
-            <h2 data-i18n="table.national">National</h2>
-            <div id="mlb-national-divisions" class="mlb-divisions-wrap"></div>
-          </article>
+          <div id="mlb-view-division" class="mlb-standings-root">
+            <article class="panel mlb-league-panel">
+              <h2 data-i18n="table.american">American</h2>
+              <div id="mlb-american-divisions" class="mlb-divisions-wrap"></div>
+            </article>
+            <article class="panel mlb-league-panel">
+              <h2 data-i18n="table.national">National</h2>
+              <div id="mlb-national-divisions" class="mlb-divisions-wrap"></div>
+            </article>
+          </div>
+          <div id="mlb-view-league" class="mlb-standings-root hidden">
+            <article class="panel mlb-league-panel">
+              <h2 data-i18n="table.american">American</h2>
+              <div id="mlb-league-american" class="mlb-divisions-wrap"></div>
+            </article>
+            <article class="panel mlb-league-panel">
+              <h2 data-i18n="table.national">National</h2>
+              <div id="mlb-league-national" class="mlb-divisions-wrap"></div>
+            </article>
+          </div>
         </div>
 
         <!-- Soccer 순위 (리그 공용) -->

@@ -122,6 +122,7 @@ const SOCCER_LEAGUES = {
   'ita.1':          { name: 'Serie A',   shortName: 'SRA',  emoji: '🇮🇹' },
   'uefa.champions': { name: 'UCL',       shortName: 'UCL',  emoji: '⭐' },
   'uefa.europa':    { name: 'UEL',       shortName: 'UEL',  emoji: '🟠' },
+  'eng.fa':         { name: 'FA Cup',    shortName: 'FA',   emoji: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
   'fifa.world':     { name: 'FIFA World Cup', shortName: 'WC', emoji: '🏆' }
 };
 
@@ -135,7 +136,8 @@ const SOCCER_ZONES = {
   'ger.1':          { ucl:[1,4],  uel:[5,6],   playoff:null,   rel:[16,18] },
   'ita.1':          { ucl:[1,4],  uel:[5,6],   playoff:null,   rel:[18,20] },
   'uefa.champions': { ucl:[1,8],  uel:null,    playoff:[9,24], rel:[25,36] },
-  'uefa.europa':    { ucl:[1,8],  uel:null,    playoff:[9,24], rel:[25,36] }
+  'uefa.europa':    { ucl:[1,8],  uel:null,    playoff:[9,24], rel:[25,36] },
+  'eng.fa':         { ucl:null,   uel:null,    playoff:null,   rel:null }
 };
 
 function getSoccerUrls(leagueId, type = 'scoreboard') {
@@ -351,6 +353,7 @@ function mapConferenceRows(entries, sport = 'nba') {
       return {
         ...common,
         rank: index + 1,
+        pctSort: row.pctSort,
         playoffSeed:
           Number.isFinite(row.seed) && row.seed !== Number.POSITIVE_INFINITY ? row.seed : null
       };
@@ -463,6 +466,18 @@ function partitionMlbFlatEntriesByTeamId(entries, leagueKey) {
  * AL/NL 각각 [{ division, rows } | { division:null, label, rows }, ...]
  * — API에 division children가 있으면 사용, 없으면 팀 id로 강제 분할
  */
+/** AL/NL 리그 전체 순위(승률·이름) — 지구 순서와 무관 */
+function buildMlbLeagueOverallRows(rows) {
+  if (!Array.isArray(rows) || !rows.length) return [];
+  const sorted = [...rows].sort((a, b) => {
+    const pa = Number.isFinite(a.pctSort) ? a.pctSort : -1;
+    const pb = Number.isFinite(b.pctSort) ? b.pctSort : -1;
+    if (pb !== pa) return pb - pa;
+    return String(a.team).localeCompare(String(b.team), 'en', { sensitivity: 'base' });
+  });
+  return sorted.map((r, i) => ({ ...r, rank: i + 1 }));
+}
+
 function mapMlbConferenceToDivisions(conf, leagueKey) {
   if (!conf) return [];
   const rawChildren = conf.children || [];
@@ -512,10 +527,13 @@ function parseEspnStandingsPayload(payload, sport = 'nba') {
       confA?.standings?.seasonType
       ?? confB?.standings?.seasonType
       ?? payload?.children?.[0]?.standings?.seasonType;
+    const mlbOverallAmerican = buildMlbLeagueOverallRows(flatAmerican);
+    const mlbOverallNational = buildMlbLeagueOverallRows(flatNational);
     return {
       eastern: flatAmerican.map((row) => ({ ...row, conference: 'American' })),
       western: flatNational.map((row) => ({ ...row, conference: 'National' })),
       mlbByDivision: { american: americanDivisions, national: nationalDivisions },
+      mlbOverallByLeague: { american: mlbOverallAmerican, national: mlbOverallNational },
       sport,
       fetchedAt: new Date().toISOString(),
       standingsSeasonType: standingsSeasonType != null ? Number(standingsSeasonType) : null
@@ -583,6 +601,17 @@ async function fetchSoccerStandings(leagueId = 'eng.1') {
       const payload  = response.data;
 
       // FIFA World Cup: 조별(children) — 단일 standings.entries 가 아님
+      // FA Cup: ESPN standings는 리그형 테이블이 없음(토너먼트) — 빈 결과로 UI에서 안내
+      if (leagueId === 'eng.fa') {
+        return {
+          table: [],
+          teams: [],
+          leagueId,
+          faCupNoLeagueTable: true,
+          fetchedAt: new Date().toISOString()
+        };
+      }
+
       if (leagueId === WC_LEAGUE_ID) {
         const children = payload?.children;
         if (!Array.isArray(children) || !children.length) {
@@ -1367,12 +1396,18 @@ function mapGameRow(event) {
   if (!away || !home) return null;
 
   const statusType = event.status?.type || {};
-  const getInfo = (c) => ({
-    id:    String(c?.team?.id || ''),
-    abbr:  c?.team?.abbreviation || c?.team?.shortDisplayName || '???',
-    logo:  c?.team?.logos?.[0]?.href || c?.team?.logo || '',
-    score: c?.score ?? ''
-  });
+  const getInfo = (c) => {
+    const tm = c?.team || {};
+    const abbr = tm.abbreviation || tm.shortDisplayName || '???';
+    const name = tm.displayName || tm.shortDisplayName || tm.name || abbr;
+    return {
+      id:    String(tm.id || ''),
+      abbr,
+      name,
+      logo:  tm.logos?.[0]?.href || tm.logo || '',
+      score: c?.score ?? ''
+    };
+  };
 
   return {
     id:     event.id,
@@ -1717,6 +1752,24 @@ async function fetchKboGames(dateStr = null) {
   }
 }
 
+/** 일별 목록에는 없고, 단건 스케줄 API에만 오는 예정 선발 투수명 */
+async function fetchKboGameScheduledStarters(gameId) {
+  if (!gameId) return { home: '', away: '' };
+  const url = `https://api-gw.sports.naver.com/schedule/games/${encodeURIComponent(String(gameId))}?categoryId=kbo`;
+  try {
+    const response = await axios.get(url, { timeout: 15000, headers: KBO_HEADERS });
+    const g = response.data?.result?.game;
+    if (!g) return { home: '', away: '' };
+    return {
+      home: String(g.homeStarterName || '').trim(),
+      away: String(g.awayStarterName || '').trim()
+    };
+  } catch (err) {
+    console.error('[kbo] fetchKboGameScheduledStarters 실패', err.message);
+    return { home: '', away: '' };
+  }
+}
+
 async function fetchKboTeamStatus(teamCode) {
   const games = await fetchKboGames();
   const game = games.find(g => g.homeTeamCode === teamCode || g.awayTeamCode === teamCode);
@@ -1743,13 +1796,27 @@ async function fetchKboTeamStatus(teamCode) {
   const matchKey = game.gameId != null ? String(game.gameId) : '';
 
   if (status === 'BEFORE' || status === 'READY') {
+    const starters = await fetchKboGameScheduledStarters(game.gameId);
+    const myStarterName = isHome ? starters.home : starters.away;
+    const oppStarterName = isHome ? starters.away : starters.home;
+    let pitcher = null;
+    if (myStarterName || oppStarterName) {
+      pitcher = {
+        mode: 'probable',
+        my: myStarterName ? { name: myStarterName, record: '' } : null,
+        opp: oppStarterName ? { name: oppStarterName, record: '' } : null,
+        myAbbr,
+        oppAbbr
+      };
+    }
     return {
       mode: 'pre',
       myAbbr, oppAbbr, myLogo, oppLogo,
       opponentName: oppTeam?.name || oppCode,
       isHome,
       startDateISO: game.gameDateTime,
-      matchKey
+      matchKey,
+      pitcher
     };
   }
   // 네이버 KBO: 진행 중은 statusCode "STARTED" (이닝 등은 statusInfo)

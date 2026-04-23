@@ -868,43 +868,36 @@ h1 {
   color: #4e6070;
 }
 
-/* ALL GAMES 로고 (표시 전용 — 즐겨찾기는 설정에서만 추가) */
-.gr-team-btn.gr-team-display {
-  background: none;
-  border: none;
-  padding: 2px;
-  border-radius: 3px;
-  cursor: default;
+/* ALL GAMES: 팀 로고 + 이름 (즐겨찾기 강조 없음) */
+.gr-team-slot {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  position: relative;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 0;
+  padding: 1px 0;
+  cursor: default;
   -webkit-app-region: no-drag;
 }
 
-.gr-team-btn.gr-team-display:hover {
-  background: transparent;
-  transform: none;
+.gr-team-slot--away {
+  justify-content: flex-end;
 }
 
-/* 즐겨찾기 상태: 파란 링 */
-.gr-team-btn.fav .gr-logo {
-  outline: 1.5px solid #4d8cff;
-  outline-offset: 1px;
-  border-radius: 2px;
+.gr-team-slot--home {
+  justify-content: flex-start;
 }
 
-/* 즐겨찾기 상태 도트 */
-.gr-team-btn.fav::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #4d8cff;
+.gr-team-name {
+  font-size: 9px;
+  line-height: 1.2;
+  color: #b8c5d6;
+  min-width: 0;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gr-logo {
@@ -1405,6 +1398,14 @@ h1 {
   width: 100% !important;
 }
 
+.soccer-std-note {
+  padding: 12px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #7a8fa8;
+  text-align: center;
+}
+
 .epl-rank-table {
   width: 100%;
   border-collapse: collapse;
@@ -1720,6 +1721,37 @@ h1 {
   color: #e0963c;
 }
 
+.zone-badge--mlb-ds {
+  background: rgba(100, 140, 255, 0.16);
+  color: #8eb4ff;
+}
+.zone-badge--mlb-wc {
+  background: rgba(180, 130, 255, 0.14);
+  color: #c4a6ff;
+}
+
+/* MLB: DS 직행 / 와일드카드 행(미세 톤) */
+.row-mlb-ds {
+  background: rgba(70, 120, 230, 0.07);
+}
+.row-mlb-ds td:first-child {
+  box-shadow: inset 3px 0 0 rgba(90, 140, 255, 0.55);
+}
+.row-mlb-wc {
+  background: rgba(150, 100, 220, 0.07);
+}
+.row-mlb-wc td:first-child {
+  box-shadow: inset 3px 0 0 rgba(170, 120, 240, 0.5);
+}
+
+.standings-footnote {
+  margin: 0 2px 2px;
+  padding: 0 4px;
+  font-size: 6.5px;
+  line-height: 1.35;
+  color: #5c6d82;
+}
+
 .standings-sport-tabs {
   display: flex;
   gap: 4px;
@@ -1910,6 +1942,26 @@ h1 {
   color: #7a8fa8;
   text-align: center;
   line-height: 1.4;
+}
+
+/* MLB 순위: 지구 / 리그 전체 뷰 전환 */
+.tables.tables--mlb {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  grid-template-columns: unset;
+}
+
+.mlb-standings-root {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  min-height: 0;
+  width: 100%;
+}
+
+.mlb-standings-root.hidden {
+  display: none !important;
 }
 
 /* MLB: 리그당 East / Central / West 지구 블록 */
