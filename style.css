@@ -893,8 +893,9 @@ h1 {
   font-size: 9px;
   line-height: 1.2;
   color: #b8c5d6;
+  /* 슬롯(.gr-team-slot) 폭까지 쓰고, 창이 좁을 때만 말줄임 */
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 72px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
