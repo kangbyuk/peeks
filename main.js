@@ -1553,15 +1553,24 @@ async function fetchEspnTeamScheduleEvents(sport, teamId, leagueId) {
 
   try {
     if (sport === 'nba') {
-      for (const st of [2, 3]) {
+      const seenIds = new Set();
+      const merge = (evs) => {
+        for (const ev of evs) {
+          const id = ev?.id != null ? String(ev.id) : null;
+          if (id && seenIds.has(id)) continue;
+          if (id) seenIds.add(id);
+          collected.push(ev);
+        }
+      };
+      for (const st of [3, 2]) {
         const urls = [
           `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${teamId}/schedule?seasontype=${st}`,
           `https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${teamId}/schedule?seasontype=${st}`
         ];
         for (const url of urls) {
           try {
-            const evs = await pull(url);
-            if (evs.length) { collected.push(...evs); break; }
+            merge(await pull(url));
+            break;
           } catch (_) { /* next url */ }
         }
       }
@@ -1596,6 +1605,38 @@ async function fetchEspnTeamScheduleEvents(sport, teamId, leagueId) {
     }
   } catch (err) {
     console.error('[calendar] ESPN schedule 실패', { sport, teamId, leagueId, message: err.message });
+  }
+  return [];
+}
+
+function calendarEventsForTeamInRange(events, teamId, startKey, endKey) {
+  return (events || []).filter((ev) => {
+    const dk = kstDateKeyFromIso(ev.date);
+    if (!isDateKeyInRange(dk, startKey, endKey)) return false;
+    return (ev.competitions?.[0]?.competitors || []).some(
+      (c) => String(c.team?.id) === String(teamId)
+    );
+  });
+}
+
+/** NBA/MLB: 기간 스코어보드 (팀 schedule에 해당 주 일정이 없을 때) */
+async function fetchEspnScoreboardEventsInRange(sport, startKey, endKey) {
+  if (!startKey || !endKey) return [];
+  const segment = sport === 'nba' ? 'basketball/nba' : sport === 'mlb' ? 'baseball/mlb' : null;
+  if (!segment) return [];
+  const datesParam = `${startKey.replace(/-/g, '')}-${endKey.replace(/-/g, '')}`;
+  const urls = [
+    `https://site.api.espn.com/apis/site/v2/sports/${segment}/scoreboard?dates=${datesParam}`,
+    `https://site.web.api.espn.com/apis/site/v2/sports/${segment}/scoreboard?dates=${datesParam}`
+  ];
+  for (const url of urls) {
+    try {
+      const response = await axios.get(url, { timeout: 20000, headers: HTTP_HEADERS });
+      const events = Array.isArray(response.data?.events) ? response.data.events : [];
+      if (events.length) return events;
+    } catch (err) {
+      console.warn('[calendar] ESPN scoreboard 실패', { sport, url, message: err.message });
+    }
   }
   return [];
 }
@@ -1647,6 +1688,8 @@ async function fetchCalendarForFavorites(favorites, startKey, endKey) {
       const dateStr = key.replace(/-/g, '');
       const games = await fetchKboGames(dateStr);
       for (const g of games) {
+        const gameDay = kstDateKeyFromIso(g.gameDateTime);
+        if (gameDay !== key) continue;
         for (const fav of kboFavs) {
           const code = String(fav.teamId);
           if (g.homeTeamCode !== code && g.awayTeamCode !== code) continue;
@@ -1682,15 +1725,19 @@ async function fetchCalendarForFavorites(favorites, startKey, endKey) {
 
   await Promise.all(espnFavs.map(async (fav) => {
     let evs = await fetchEspnTeamScheduleEvents(fav.sport, fav.teamId, fav.leagueId);
-    if (!evs.length && fav.sport === 'soccer' && fav.leagueId) {
-      const board = await fetchSoccerScoreboardEventsInRange(fav.leagueId, startKey, endKey);
-      evs = board.filter((ev) =>
-        (ev.competitions?.[0]?.competitors || []).some((c) => String(c.team?.id) === String(fav.teamId))
-      );
+    evs = calendarEventsForTeamInRange(evs, fav.teamId, startKey, endKey);
+
+    if (!evs.length) {
+      if (fav.sport === 'soccer' && fav.leagueId) {
+        const board = await fetchSoccerScoreboardEventsInRange(fav.leagueId, startKey, endKey);
+        evs = calendarEventsForTeamInRange(board, fav.teamId, startKey, endKey);
+      } else if (fav.sport === 'nba' || fav.sport === 'mlb') {
+        const board = await fetchEspnScoreboardEventsInRange(fav.sport, startKey, endKey);
+        evs = calendarEventsForTeamInRange(board, fav.teamId, startKey, endKey);
+      }
     }
+
     for (const ev of evs) {
-      const dk = kstDateKeyFromIso(ev.date);
-      if (!isDateKeyInRange(dk, startKey, endKey)) continue;
       const entry = mapEventToCalendarEntry(ev, fav.teamId, fav.sport, fav.leagueId);
       if (entry && !seen.has(entry.id)) {
         seen.add(entry.id);

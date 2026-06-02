@@ -5,6 +5,7 @@
 - **UI**: 가로 **주간 날짜 스트립**, 리그별 그룹, 경기 카드(시간·구장·홈/원정·스코어).
 - **스코어**: ESPN 객체 스코어 `[object Object]` 표시 수정 — 종료/진행 중만 스코어, 예정은 "예정".
 - **리그명**: 순위 탭과 동일하게 MLB, NBA, KBO, EPL 등 표시 (시즌 연도 대신).
+- **일정 fetch**: NBA 플레이오프·KBO·축구 등 해당 주 schedule이 비면 **스코어보드 폴백**; KBO 실제 경기일 필터.
 
 ### Install
 - `PEEKS-1.2.7-universal.dmg` — macOS (universal)
