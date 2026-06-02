@@ -1419,6 +1419,290 @@ function mapGameRow(event) {
   };
 }
 
+// ── 통합 달력: 즐겨찾기 팀 전 종목 일정 ──
+function kstDateKeyFromIso(iso) {
+  if (!iso) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date(iso));
+}
+
+function addDaysToDateKey(key, delta) {
+  const [y, m, d] = key.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 3, 0, 0));
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return kstDateKeyFromIso(dt.toISOString());
+}
+
+function isDateKeyInRange(key, startKey, endKey) {
+  return key >= startKey && key <= endKey;
+}
+
+function parseEspnCompetitorScore(score) {
+  if (score == null || score === '') return '';
+  if (typeof score === 'object') {
+    const v = score.displayValue ?? score.value;
+    return v != null && v !== '' ? String(v) : '';
+  }
+  return String(score);
+}
+
+function calendarTeamFromCompetitor(c) {
+  const tm = c?.team || {};
+  return {
+    id: String(tm.id || ''),
+    abbr: tm.abbreviation || tm.shortDisplayName || '???',
+    name: tm.displayName || tm.shortDisplayName || tm.name || tm.abbreviation || '???',
+    logo: tm.logos?.[0]?.href || tm.logo || '',
+    score: parseEspnCompetitorScore(c?.score)
+  };
+}
+
+function calendarLeagueLabel(sport, leagueId) {
+  if (sport === 'worldcup') return SOCCER_LEAGUES[WC_LEAGUE_ID]?.name || 'FIFA World Cup';
+  if (sport === 'soccer' && leagueId) {
+    const meta = SOCCER_LEAGUES[leagueId];
+    if (meta) return meta.name;
+  }
+  const labels = { nba: 'NBA', mlb: 'MLB', kbo: 'KBO' };
+  return labels[sport] || sport;
+}
+
+function mapEventToCalendarEntry(event, teamId, sport, leagueId) {
+  const competition = event.competitions?.[0];
+  const competitors = competition?.competitors || [];
+  const myComp = competitors.find((c) => String(c.team?.id) === String(teamId));
+  const oppComp = competitors.find((c) => String(c.team?.id) !== String(teamId));
+  if (!myComp || !oppComp) return null;
+
+  const statusType = event.status?.type || competition?.status?.type || {};
+  const my = calendarTeamFromCompetitor(myComp);
+  const opp = calendarTeamFromCompetitor(oppComp);
+
+  const venueObj = competition?.venue || {};
+  return {
+    id: `${sport}_${event.id}_${teamId}`,
+    sport,
+    leagueId: leagueId || null,
+    leagueLabel: calendarLeagueLabel(sport, leagueId),
+    teamId: String(teamId),
+    teamAbbr: my.abbr,
+    teamName: my.name,
+    teamLogo: my.logo,
+    date: event.date,
+    isHome: myComp.homeAway === 'home',
+    state: statusType.state || 'pre',
+    status: statusType.shortDetail || statusType.detail || '',
+    myScore: parseEspnCompetitorScore(my.score),
+    oppScore: parseEspnCompetitorScore(opp.score),
+    venue: venueObj.fullName || venueObj.name || '',
+    opp
+  };
+}
+
+function mapKboGameToCalendarEntry(game, teamCode) {
+  const isHome = game.homeTeamCode === teamCode;
+  const myTeam = kboTeamByCode(teamCode);
+  const oppCode = isHome ? game.awayTeamCode : game.homeTeamCode;
+  const oppTeam = kboTeamByCode(oppCode);
+  const status = String(game.statusCode || '').trim().toUpperCase();
+  let state = 'pre';
+  if (status === 'STARTED' || status === 'LIVE' || status === 'IN_PROGRESS') state = 'in';
+  else if (status === 'RESULT' || status === 'FINAL') state = 'post';
+
+  const myScore = isHome ? game.homeTeamScore : game.awayTeamScore;
+  const oppScore = isHome ? game.awayTeamScore : game.homeTeamScore;
+
+  return {
+    id: `kbo_${game.gameId}_${teamCode}`,
+    sport: 'kbo',
+    leagueId: null,
+    leagueLabel: calendarLeagueLabel('kbo', null),
+    teamId: String(teamCode),
+    teamAbbr: myTeam?.shortName || teamCode,
+    teamName: myTeam?.name || teamCode,
+    teamLogo: isHome ? game.homeTeamEmblemUrl : game.awayTeamEmblemUrl,
+    date: game.gameDateTime,
+    isHome,
+    state,
+    status: game.statusInfo || '',
+    myScore: myScore != null && myScore !== '' ? String(myScore) : '',
+    oppScore: oppScore != null && oppScore !== '' ? String(oppScore) : '',
+    venue: game.stadium || game.stadiumName || game.gamePlaceName || '',
+    opp: {
+      id: String(oppCode),
+      abbr: oppTeam?.shortName || oppCode,
+      name: oppTeam?.name || oppCode,
+      logo: isHome ? game.awayTeamEmblemUrl : game.homeTeamEmblemUrl,
+      score: oppScore
+    }
+  };
+}
+
+async function fetchEspnTeamScheduleEvents(sport, teamId, leagueId) {
+  const collected = [];
+
+  async function pull(url) {
+    const response = await axios.get(url, { timeout: 15000, headers: HTTP_HEADERS });
+    const evs = response.data?.events;
+    return Array.isArray(evs) ? evs : [];
+  }
+
+  try {
+    if (sport === 'nba') {
+      for (const st of [2, 3]) {
+        const urls = [
+          `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${teamId}/schedule?seasontype=${st}`,
+          `https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${teamId}/schedule?seasontype=${st}`
+        ];
+        for (const url of urls) {
+          try {
+            const evs = await pull(url);
+            if (evs.length) { collected.push(...evs); break; }
+          } catch (_) { /* next url */ }
+        }
+      }
+      return collected;
+    }
+    if (sport === 'mlb') {
+      const urls = [
+        `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/teams/${teamId}/schedule`,
+        `https://site.web.api.espn.com/apis/site/v2/sports/baseball/mlb/teams/${teamId}/schedule`
+      ];
+      for (const url of urls) {
+        try {
+          const evs = await pull(url);
+          if (evs.length) return evs;
+        } catch (_) { /* next url */ }
+      }
+      return [];
+    }
+    if (sport === 'soccer' || sport === 'worldcup') {
+      const lid = sport === 'worldcup' ? WC_LEAGUE_ID : leagueId;
+      if (!lid) return [];
+      const urls = [
+        `https://site.api.espn.com/apis/site/v2/sports/soccer/${lid}/teams/${teamId}/schedule`,
+        `https://site.web.api.espn.com/apis/site/v2/sports/soccer/${lid}/teams/${teamId}/schedule`
+      ];
+      for (const url of urls) {
+        try {
+          const evs = await pull(url);
+          if (evs.length) return evs;
+        } catch (_) { /* next url */ }
+      }
+    }
+  } catch (err) {
+    console.error('[calendar] ESPN schedule 실패', { sport, teamId, leagueId, message: err.message });
+  }
+  return [];
+}
+
+/** fifa.world 등: 팀 schedule API가 비어 있을 때 기간 스코어보드로 보조 */
+async function fetchSoccerScoreboardEventsInRange(leagueId, startKey, endKey) {
+  if (!leagueId || !startKey || !endKey) return [];
+  const datesParam = `${startKey.replace(/-/g, '')}-${endKey.replace(/-/g, '')}`;
+  const urls = [
+    `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/scoreboard?dates=${datesParam}`,
+    `https://site.web.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/scoreboard?dates=${datesParam}`
+  ];
+  for (const url of urls) {
+    try {
+      const response = await axios.get(url, { timeout: 20000, headers: HTTP_HEADERS });
+      const events = Array.isArray(response.data?.events) ? response.data.events : [];
+      if (events.length) return events;
+    } catch (err) {
+      console.warn('[calendar] scoreboard 실패', { leagueId, url, message: err.message });
+    }
+  }
+  return [];
+}
+
+async function fetchCalendarForFavorites(favorites, startKey, endKey) {
+  if (!Array.isArray(favorites) || !favorites.length || !startKey || !endKey) {
+    return { events: [], fetchedAt: new Date().toISOString() };
+  }
+
+  const seen = new Set();
+  const events = [];
+  const uniqFavs = [];
+  const favKeys = new Set();
+  for (const f of favorites) {
+    if (!f?.teamId || !f?.sport) continue;
+    const k = `${f.sport}_${f.teamId}_${f.leagueId || ''}`;
+    if (favKeys.has(k)) continue;
+    favKeys.add(k);
+    uniqFavs.push(f);
+  }
+
+  const kboFavs = uniqFavs.filter((f) => f.sport === 'kbo');
+  const wcFavs = uniqFavs.filter((f) => f.sport === 'worldcup');
+  const espnFavs = uniqFavs.filter((f) => f.sport !== 'kbo' && f.sport !== 'worldcup');
+
+  if (kboFavs.length) {
+    let key = startKey;
+    while (isDateKeyInRange(key, startKey, endKey)) {
+      const dateStr = key.replace(/-/g, '');
+      const games = await fetchKboGames(dateStr);
+      for (const g of games) {
+        for (const fav of kboFavs) {
+          const code = String(fav.teamId);
+          if (g.homeTeamCode !== code && g.awayTeamCode !== code) continue;
+          const entry = mapKboGameToCalendarEntry(g, code);
+          if (entry && !seen.has(entry.id)) {
+            seen.add(entry.id);
+            events.push(entry);
+          }
+        }
+      }
+      key = addDaysToDateKey(key, 1);
+    }
+  }
+
+  // 월드컵: ESPN 팀 schedule은 거의 비어 있음 → 리그 스코어보드(기간)에서 응원국 경기 추출
+  if (wcFavs.length) {
+    const wcEvents = await fetchSoccerScoreboardEventsInRange(WC_LEAGUE_ID, startKey, endKey);
+    for (const ev of wcEvents) {
+      const comps = ev.competitions?.[0]?.competitors || [];
+      for (const fav of wcFavs) {
+        const tid = String(fav.teamId);
+        if (!comps.some((c) => String(c.team?.id) === tid)) continue;
+        const dk = kstDateKeyFromIso(ev.date);
+        if (!isDateKeyInRange(dk, startKey, endKey)) continue;
+        const entry = mapEventToCalendarEntry(ev, tid, 'worldcup', WC_LEAGUE_ID);
+        if (entry && !seen.has(entry.id)) {
+          seen.add(entry.id);
+          events.push(entry);
+        }
+      }
+    }
+  }
+
+  await Promise.all(espnFavs.map(async (fav) => {
+    let evs = await fetchEspnTeamScheduleEvents(fav.sport, fav.teamId, fav.leagueId);
+    if (!evs.length && fav.sport === 'soccer' && fav.leagueId) {
+      const board = await fetchSoccerScoreboardEventsInRange(fav.leagueId, startKey, endKey);
+      evs = board.filter((ev) =>
+        (ev.competitions?.[0]?.competitors || []).some((c) => String(c.team?.id) === String(fav.teamId))
+      );
+    }
+    for (const ev of evs) {
+      const dk = kstDateKeyFromIso(ev.date);
+      if (!isDateKeyInRange(dk, startKey, endKey)) continue;
+      const entry = mapEventToCalendarEntry(ev, fav.teamId, fav.sport, fav.leagueId);
+      if (entry && !seen.has(entry.id)) {
+        seen.add(entry.id);
+        events.push(entry);
+      }
+    }
+  }));
+
+  events.sort((a, b) => new Date(a.date) - new Date(b.date));
+  return { events, fetchedAt: new Date().toISOString(), startKey, endKey };
+}
+
 // ── UCL 토너먼트 단계 판별 및 대진표 fetch ──
 // ── UCL 토너먼트 라운드 정의 ──
 const UCL_ROUNDS = [
@@ -1682,6 +1966,29 @@ async function fetchUelTournament() {
 
 async function fetchWorldCupTournament() {
   return fetchUefaCupScoreboardTournament('fifa.world', WC_ROUNDS, '20260601-20260725', 'wc');
+}
+
+/** 월드컵 전체 일정 (토너먼트 기간 스코어보드 일괄 조회) */
+async function fetchWorldCupSchedule() {
+  const datesParam = '20260601-20260725';
+  const paths = [
+    `https://site.api.espn.com/apis/site/v2/sports/soccer/${WC_LEAGUE_ID}/scoreboard?dates=${datesParam}`,
+    `https://site.web.api.espn.com/apis/site/v2/sports/soccer/${WC_LEAGUE_ID}/scoreboard?dates=${datesParam}`
+  ];
+  for (const url of paths) {
+    try {
+      const response = await axios.get(url, { timeout: 20000, headers: HTTP_HEADERS });
+      const events = Array.isArray(response.data?.events) ? response.data.events : [];
+      const games = events
+        .map(mapGameRow)
+        .filter(Boolean)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      return { games, fetchedAt: new Date().toISOString() };
+    } catch (err) {
+      console.error('[wc:schedule] fetch 실패', { url, message: err.message });
+    }
+  }
+  return { games: [], fetchedAt: new Date().toISOString(), error: 'fetch failed' };
 }
 
 async function fetchAllGames(sport = 'nba', leagueId = null) {
@@ -1954,6 +2261,19 @@ app.whenReady().then(() => {
 
   ipcMain.handle('wc:fetchTournament', async () => {
     return fetchWorldCupTournament();
+  });
+
+  ipcMain.handle('wc:fetchSchedule', async () => {
+    return fetchWorldCupSchedule();
+  });
+
+  ipcMain.handle('calendar:fetchRange', async (_, favorites, startKey, endKey) => {
+    try {
+      return await fetchCalendarForFavorites(favorites, startKey, endKey);
+    } catch (err) {
+      console.error('[calendar:fetchRange] 실패', err.message);
+      return { events: [], error: err.message, fetchedAt: new Date().toISOString() };
+    }
   });
 
   ipcMain.handle('kbo:fetchTeamStatus', async (_, teamCode) => {

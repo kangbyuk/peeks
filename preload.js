@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('standingsAPI', {
   fetchUclTournament:   () => ipcRenderer.invoke('ucl:fetchTournament'),
   fetchUelTournament:   () => ipcRenderer.invoke('uel:fetchTournament'),
   fetchWorldCupTournament: () => ipcRenderer.invoke('wc:fetchTournament'),
+  fetchWorldCupSchedule:  () => ipcRenderer.invoke('wc:fetchSchedule'),
+  fetchCalendarRange: (favorites, startKey, endKey) =>
+    ipcRenderer.invoke('calendar:fetchRange', favorites, startKey, endKey),
   // KBO
   kboFetchTeamStatus:   (teamCode) => ipcRenderer.invoke('kbo:fetchTeamStatus', teamCode),
   kboFetchNextGame:     (teamCode) => ipcRenderer.invoke('kbo:fetchNextGame', teamCode),

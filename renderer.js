@@ -121,6 +121,7 @@ const I18N = {
     'aria.clearSearch': '지우기',
     'toolbar.refresh': '새로고침',
     'toolbar.home': '홈으로',
+    'toolbar.calendar': '일정 달력',
     'toolbar.rank': '순위 보기',
     'toolbar.settings': '설정',
     'empty.title': '아직 응원하는 팀이 없네요!',
@@ -158,6 +159,15 @@ const I18N = {
     'worldcup.tabGroups': '조별 순위',
     'worldcup.tabKnockout': '토너먼트',
     'worldcup.loadingKnockout': '대진 불러오는 중...',
+    'calendar.today': '오늘',
+    'calendar.prev': '이전',
+    'calendar.next': '다음',
+    'calendar.loading': '일정 불러오는 중...',
+    'calendar.noTeams': '설정에서 응원 팀·국가를 선택하면 일정이 표시됩니다.',
+    'calendar.emptyDay': '이 날짜에 경기가 없습니다.',
+    'calendar.scheduled': '예정',
+    'calendar.finished': '종료',
+    'calendar.home': '홈',
     'standings.nbaPlayoff': '플레이오프',
     'standings.nbaRegular': '정규시즌',
     'standings.nbaBracketFoot': '라운드·시리즈 전적은 ESPN 포스트시즌 일정을 기준으로 묶었습니다. 다음 라운드 상대는 경기가 잡히면 표시됩니다.',
@@ -214,6 +224,7 @@ const I18N = {
     'aria.clearSearch': 'Clear',
     'toolbar.refresh': 'Refresh',
     'toolbar.home': 'Home',
+    'toolbar.calendar': 'Schedule calendar',
     'toolbar.rank': 'Standings',
     'toolbar.settings': 'Settings',
     'empty.title': 'No favorite teams yet!',
@@ -251,6 +262,15 @@ const I18N = {
     'worldcup.tabGroups': 'Groups',
     'worldcup.tabKnockout': 'Knockout',
     'worldcup.loadingKnockout': 'Loading bracket...',
+    'calendar.today': 'Today',
+    'calendar.prev': 'Previous',
+    'calendar.next': 'Next',
+    'calendar.loading': 'Loading schedule...',
+    'calendar.noTeams': 'Select teams or nations in Settings to see their schedule.',
+    'calendar.emptyDay': 'No games on this day.',
+    'calendar.scheduled': 'Scheduled',
+    'calendar.finished': 'Final',
+    'calendar.home': 'Home',
     'standings.nbaPlayoff': 'Playoffs',
     'standings.nbaRegular': 'Regular season',
     'standings.nbaBracketFoot': 'Rounds and series are grouped from ESPN’s postseason schedule. Next-round matchups appear when games are scheduled.',
@@ -406,6 +426,14 @@ const baseballSetupSectionEl = document.getElementById('baseball-setup-section')
 const baseballGamesSubtabsEl = document.getElementById('baseball-games-subtabs');
 const saveFavoriteBtn = document.getElementById('save-favorite-btn');
 const homeBtn = document.getElementById('home-btn');
+const calendarBtn = document.getElementById('calendar-btn');
+const calendarViewEl = document.getElementById('calendar-view');
+const calendarEventsListEl = document.getElementById('calendar-events-list');
+const calDateStripEl = document.getElementById('cal-date-strip');
+const calMonthLabelEl = document.getElementById('cal-month-label');
+const calTodayBtn = document.getElementById('cal-today-btn');
+const calPrevMonthBtn = document.getElementById('cal-prev-month');
+const calNextMonthBtn = document.getElementById('cal-next-month');
 const settingsBtn = document.getElementById('settings-btn');
 const toggleRankBtn = document.getElementById('toggle-rank-btn');
 const myTeamViewEl = document.getElementById('my-team-view');
@@ -636,6 +664,9 @@ let activeWcStandingsMode = 'groups';
 let wcStandingsGroups = [];
 let wcCupBracketData = null;
 let wcCupViewRoundKey = null;
+let calendarAnchorKey = null;
+let calendarCache = null;
+let calendarLoading = false;
 /** 야구 서브: 팀 설정(MLB/KBO) */
 let activeBaseballSetupLeague = 'mlb';
 /** 야구 서브: 오늘 경기(MLB/KBO) */
@@ -2119,12 +2150,16 @@ function setView(view) {
   currentView = view;
   favoriteSetupEl.classList.toggle('hidden', view !== 'setup');
   myTeamViewEl.classList.toggle('hidden', view !== 'my-team');
+  calendarViewEl?.classList.toggle('hidden', view !== 'calendar');
   tablesViewEl.classList.toggle('hidden', view !== 'all-rank');
 
   // 버튼 상태 동기화
   homeBtn.classList.toggle('is-home', view === 'my-team');
+  calendarBtn?.classList.toggle('active-view', view === 'calendar');
   toggleRankBtn.classList.toggle('active-view', view === 'all-rank');
   settingsBtn.classList.toggle('active-view', view === 'setup');
+
+  if (view === 'calendar') activateCalendarView();
 
   // my-team 진입 시 empty state 동기화
   if (view === 'my-team' && emptyStateEl) {
@@ -2772,6 +2807,367 @@ function renderWorldCupKnockoutBracket(container) {
   }
 }
 
+function kstDateKeyFromIso(iso) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date(iso));
+}
+
+function kstTodayDateKey() {
+  return kstDateKeyFromIso(new Date().toISOString());
+}
+
+function addDaysToKstDateKey(key, delta) {
+  const [y, m, d] = key.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 3, 0, 0));
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return kstDateKeyFromIso(dt.toISOString());
+}
+
+function weekStartKeyKst(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 3, 0, 0));
+  const dow = dt.getUTCDay();
+  const diff = dow === 0 ? -6 : 1 - dow;
+  dt.setUTCDate(dt.getUTCDate() + diff);
+  return kstDateKeyFromIso(dt.toISOString());
+}
+
+function weekEndKeyKst(weekStartKey) {
+  return addDaysToKstDateKey(weekStartKey, 6);
+}
+
+function compareKstDateKeys(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function isDateKeyInRange(key, startKey, endKey) {
+  return compareKstDateKeys(key, startKey) >= 0 && compareKstDateKeys(key, endKey) <= 0;
+}
+
+function formatCalendarDayLabel(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 3, 0, 0));
+  if (peeksLang === 'ko') {
+    const wd = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', weekday: 'short' }).format(dt);
+    return `${m}월 ${d}일 (${wd})`;
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    month: 'short',
+    day: 'numeric',
+    weekday: 'short'
+  }).format(dt);
+}
+
+function formatCalendarMonthLabel(key) {
+  const [y, m] = key.split('-').map(Number);
+  return `${y}.${String(m).padStart(2, '0')}`;
+}
+
+function formatCalendarTime(isoDateStr) {
+  try {
+    return new Intl.DateTimeFormat(peeksLang === 'en' ? 'en-GB' : 'ko-KR', {
+      timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false
+    }).format(new Date(isoDateStr));
+  } catch (_) {
+    return t('time.tbd');
+  }
+}
+
+function calendarPeriodBounds(anchorKey) {
+  const startKey = weekStartKeyKst(anchorKey);
+  return { startKey, endKey: weekEndKeyKst(startKey) };
+}
+
+function formatCalendarScore(score) {
+  if (score == null || score === '') return '0';
+  if (typeof score === 'object') {
+    const v = score.displayValue ?? score.value;
+    return v != null && v !== '' ? String(v) : '0';
+  }
+  return String(score);
+}
+
+function ensureCalendarAnchorKey() {
+  if (calendarAnchorKey) return;
+  calendarAnchorKey = kstTodayDateKey();
+}
+
+function calendarDaysWithGames() {
+  const set = new Set();
+  for (const ev of calendarCache?.events || []) {
+    set.add(kstDateKeyFromIso(ev.date));
+  }
+  return set;
+}
+
+function calendarTeamDisplayName(team, sport) {
+  let name = team?.name || team?.abbr || '?';
+  if (sport === 'worldcup' && peeksLang === 'ko' && team?.abbr) {
+    const ko = WC_NATION_NAME_KO[String(team.abbr).toUpperCase()];
+    if (ko) name = ko;
+  }
+  return name;
+}
+
+function calendarSectionKey(ev) {
+  return `${ev.sport}_${ev.leagueId || ''}`;
+}
+
+function calendarSectionLabel(ev) {
+  if (ev.sport === 'soccer' || ev.sport === 'worldcup') {
+    const lid = ev.leagueId || WC_LEAGUE_ID;
+    const meta = SOCCER_LEAGUES[lid];
+    if (meta) return meta.name;
+  }
+  const labels = { nba: 'NBA', mlb: 'MLB', kbo: 'KBO', worldcup: 'FIFA World Cup' };
+  if (ev.sport === 'worldcup' && peeksLang === 'ko') return 'FIFA 월드컵';
+  return labels[ev.sport] || ev.sport;
+}
+
+function calendarSectionEmoji(ev) {
+  if (ev.sport === 'soccer' || ev.sport === 'worldcup') {
+    const meta = SOCCER_LEAGUES[ev.leagueId || WC_LEAGUE_ID];
+    return meta?.emoji || SPORT_EMOJI[ev.sport];
+  }
+  return SPORT_EMOJI[ev.sport] || '🏟';
+}
+
+function calendarMatchTeams(ev) {
+  const my = {
+    name: ev.teamName || ev.teamAbbr,
+    abbr: ev.teamAbbr,
+    logo: ev.teamLogo,
+    score: ev.myScore
+  };
+  const opp = {
+    name: ev.opp?.name || ev.opp?.abbr,
+    abbr: ev.opp?.abbr,
+    logo: ev.opp?.logo,
+    score: ev.oppScore
+  };
+  return ev.isHome ? { home: my, away: opp } : { home: opp, away: my };
+}
+
+function calendarTeamSideHTML(team, sport, isHome) {
+  const name = escapeHtmlText(calendarTeamDisplayName(team, sport));
+  const logo = team.logo
+    ? `<img class="cal-match-logo" src="${team.logo}" alt="" onerror="this.style.display='none'" />`
+    : `<span class="cal-match-logo-fallback">${SPORT_EMOJI[sport] || ''}</span>`;
+  const homeBadge = isHome
+    ? `<span class="cal-home-badge">${escapeHtmlText(t('calendar.home'))}</span>`
+    : '';
+  if (isHome) {
+    return `<div class="cal-match-side cal-match-side--home">
+      ${homeBadge}${logo}<span class="cal-match-name">${name}</span>
+    </div>`;
+  }
+  return `<div class="cal-match-side cal-match-side--away">
+    <span class="cal-match-name">${name}</span>${logo}
+  </div>`;
+}
+
+function calendarMatchRowHTML(ev) {
+  const { home, away } = calendarMatchTeams(ev);
+  const isPre = ev.state === 'pre';
+  const isLive = ev.state === 'in';
+  const statusCls = isLive ? 'is-live' : isPre ? 'is-pre' : '';
+  const venue = ev.venue ? `<span class="cal-match-venue">${escapeHtmlText(ev.venue)}</span>` : '';
+
+  let centerHtml;
+  if (isPre) {
+    centerHtml = `<span class="cal-match-status is-pre">${escapeHtmlText(t('calendar.scheduled'))}</span>`;
+  } else {
+    const homeScore = formatCalendarScore(home.score);
+    const awayScore = formatCalendarScore(away.score);
+    const statusText = isLive
+      ? (typeof ev.status === 'string' && ev.status ? ev.status : 'LIVE')
+      : t('calendar.finished');
+    centerHtml = `
+      <span class="cal-match-score">${escapeHtmlText(homeScore)}</span>
+      <span class="cal-match-status ${statusCls}">${escapeHtmlText(String(statusText))}</span>
+      <span class="cal-match-score">${escapeHtmlText(awayScore)}</span>`;
+  }
+
+  return `<article class="cal-match">
+    <div class="cal-match-meta">
+      <span class="cal-match-time">${escapeHtmlText(formatCalendarTime(ev.date))}</span>
+      ${venue}
+    </div>
+    <div class="cal-match-body">
+      ${calendarTeamSideHTML(home, ev.sport, true)}
+      <div class="cal-match-center">${centerHtml}</div>
+      ${calendarTeamSideHTML(away, ev.sport, false)}
+    </div>
+  </article>`;
+}
+
+function renderCalendarDateStrip() {
+  if (!calDateStripEl) return;
+  ensureCalendarAnchorKey();
+  const anchor = calendarAnchorKey || kstTodayDateKey();
+  const today = kstTodayDateKey();
+  const weekStart = weekStartKeyKst(anchor);
+  const gameDays = calendarDaysWithGames();
+  const wdFmt = new Intl.DateTimeFormat(peeksLang === 'ko' ? 'ko-KR' : 'en-US', {
+    timeZone: 'Asia/Seoul', weekday: 'short'
+  });
+
+  const buttons = [];
+  for (let i = 0; i < 7; i++) {
+    const key = addDaysToKstDateKey(weekStart, i);
+    const [, , dStr] = key.split('-');
+    const d = Number(dStr);
+    const dt = new Date(Date.UTC(
+      Number(key.slice(0, 4)),
+      Number(key.slice(5, 7)) - 1,
+      d, 3, 0, 0
+    ));
+    const isToday = key === today;
+    const isSelected = key === anchor;
+    const hasGame = gameDays.has(key);
+    const cls = [
+      'cal-date-btn',
+      isToday ? 'is-today' : '',
+      isSelected ? 'is-selected' : '',
+      hasGame ? 'has-game' : ''
+    ].filter(Boolean).join(' ');
+    const todayTag = isToday
+      ? `<span class="cal-date-today-tag">${escapeHtmlText(t('calendar.today'))}</span>`
+      : '<span class="cal-date-today-tag"></span>';
+    buttons.push(`<button type="button" class="${cls}" data-date-key="${key}" role="tab" aria-selected="${isSelected}">
+      ${todayTag}
+      <span class="cal-date-wd">${escapeHtmlText(wdFmt.format(dt))}</span>
+      <span class="cal-date-num">${d}</span>
+    </button>`);
+  }
+  calDateStripEl.innerHTML = buttons.join('');
+
+  const selected = calDateStripEl.querySelector('.cal-date-btn.is-selected');
+  if (selected) {
+    selected.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+function renderCalendarEventsList(selectedKey) {
+  if (!calendarEventsListEl) return;
+  if (!favoriteTeams.length) {
+    calendarEventsListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(t('calendar.noTeams'))}</div>`;
+    return;
+  }
+  if (calendarLoading || !calendarCache) {
+    calendarEventsListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(t('calendar.loading'))}</div>`;
+    return;
+  }
+
+  const dayEvents = (calendarCache.events || [])
+    .filter((ev) => kstDateKeyFromIso(ev.date) === selectedKey)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (!dayEvents.length) {
+    calendarEventsListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(t('calendar.emptyDay'))}</div>`;
+    return;
+  }
+
+  const groups = new Map();
+  for (const ev of dayEvents) {
+    const k = calendarSectionKey(ev);
+    if (!groups.has(k)) groups.set(k, { ev, items: [] });
+    groups.get(k).items.push(ev);
+  }
+
+  calendarEventsListEl.innerHTML = [...groups.values()].map(({ ev, items }) => {
+    const title = escapeHtmlText(calendarSectionLabel(ev));
+    const emoji = calendarSectionEmoji(ev);
+    const rows = items.map((item) => calendarMatchRowHTML(item)).join('');
+    return `<section class="cal-section">
+      <header class="cal-section-head">
+        <span class="cal-section-emoji">${emoji}</span>
+        <span class="cal-section-title">${title}</span>
+      </header>
+      <div class="cal-section-body">${rows}</div>
+    </section>`;
+  }).join('');
+}
+
+function renderCalendar() {
+  if (!calendarViewEl || calendarViewEl.classList.contains('hidden')) return;
+  ensureCalendarAnchorKey();
+  const anchor = calendarAnchorKey || kstTodayDateKey();
+
+  if (calMonthLabelEl) {
+    calMonthLabelEl.textContent = formatCalendarMonthLabel(anchor);
+  }
+  renderCalendarDateStrip();
+  renderCalendarEventsList(anchor);
+}
+
+async function loadCalendarRange(force = false) {
+  if (!favoriteTeams.length) {
+    calendarCache = { events: [] };
+    renderCalendar();
+    return;
+  }
+  ensureCalendarAnchorKey();
+  const bounds = calendarPeriodBounds(calendarAnchorKey);
+  const cached = calendarCache;
+  if (!force && cached && cached.startKey === bounds.startKey && cached.endKey === bounds.endKey) {
+    renderCalendar();
+    return;
+  }
+  calendarLoading = true;
+  renderCalendar();
+  try {
+    const data = await window.standingsAPI.fetchCalendarRange(
+      favoriteTeams,
+      bounds.startKey,
+      bounds.endKey
+    );
+    calendarCache = {
+      events: Array.isArray(data?.events) ? data.events : [],
+      startKey: bounds.startKey,
+      endKey: bounds.endKey,
+      fetchedAt: data?.fetchedAt || new Date().toISOString()
+    };
+  } catch (e) {
+    console.error('[calendar] fetch 실패', e);
+    calendarCache = { events: [], startKey: bounds.startKey, endKey: bounds.endKey };
+  }
+  calendarLoading = false;
+  renderCalendar();
+}
+
+function shiftCalendarWeek(delta) {
+  ensureCalendarAnchorKey();
+  calendarAnchorKey = addDaysToKstDateKey(calendarAnchorKey || kstTodayDateKey(), 7 * delta);
+  calendarCache = null;
+  void loadCalendarRange(true);
+}
+
+function selectCalendarDate(key) {
+  if (!key || key === calendarAnchorKey) {
+    renderCalendar();
+    return;
+  }
+  calendarAnchorKey = key;
+  const bounds = calendarPeriodBounds(key);
+  const cached = calendarCache;
+  if (cached && cached.startKey === bounds.startKey && cached.endKey === bounds.endKey) {
+    renderCalendar();
+    return;
+  }
+  void loadCalendarRange(true);
+}
+
+function activateCalendarView() {
+  if (!calendarAnchorKey) calendarAnchorKey = kstTodayDateKey();
+  void loadCalendarRange();
+}
+
 function activateWorldCupStandingsMode(mode) {
   if (mode !== 'groups' && mode !== 'knockout') return;
   activeWcStandingsMode = mode;
@@ -3265,6 +3661,7 @@ function refreshLocaleDependentUI() {
   } else if (activeStandingsSport === 'worldcup' && activeWcStandingsMode === 'knockout' && wcCupBracketData && worldcupKnockoutWrapEl) {
     renderWorldCupKnockoutBracket(worldcupKnockoutWrapEl);
   }
+  if (currentView === 'calendar') renderCalendar();
   if (activeSetupSport === 'worldcup' && (soccerTeamsByLeague[WC_LEAGUE_ID] || []).length) {
     fillWorldCupCheckboxList(soccerTeamsByLeague[WC_LEAGUE_ID]);
   }
@@ -3393,6 +3790,28 @@ worldcupStandingsSubtabsEl?.querySelectorAll('.wc-std-tab').forEach((btn) => {
   btn.addEventListener('click', () => activateWorldCupStandingsMode(btn.dataset.wcStandings));
 });
 
+calTodayBtn?.addEventListener('click', () => {
+  calendarAnchorKey = kstTodayDateKey();
+  calendarCache = null;
+  void loadCalendarRange(true);
+});
+calPrevMonthBtn?.addEventListener('click', () => shiftCalendarWeek(-1));
+calNextMonthBtn?.addEventListener('click', () => shiftCalendarWeek(1));
+calDateStripEl?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.cal-date-btn');
+  if (!btn?.dataset.dateKey) return;
+  selectCalendarDate(btn.dataset.dateKey);
+});
+
+calendarBtn?.addEventListener('click', () => {
+  if (currentView === 'calendar') {
+    renderTeamCards();
+    setView('my-team');
+    return;
+  }
+  setView('calendar');
+});
+
 // ── NBA 순위: 플레이오프 / 정규시즌 ──
 nbaStandingsSubtabsEl?.querySelectorAll('.nba-std-tab').forEach((btn) => {
   btn.addEventListener('click', () => activateNbaStandingsMode(btn.dataset.nbaStandings));
@@ -3484,6 +3903,11 @@ saveFavoriteBtn.addEventListener('click', () => {
   renderTeamCards();
   loadTeamGameStatus();
   loadNextGame();
+  if (currentView === 'calendar') {
+    calendarCache = null;
+    calendarAnchorKey = null;
+    void loadCalendarRange(true);
+  }
   setView('my-team');
 });
 
