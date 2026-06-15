@@ -164,7 +164,9 @@ const I18N = {
     'calendar.next': '다음',
     'calendar.loading': '일정 불러오는 중...',
     'calendar.noTeams': '설정에서 응원 팀·국가를 선택하면 일정이 표시됩니다.',
+    'calendar.otherSportsHint': '월드컵은 자동 표시됩니다. MLB·NBA 등 다른 리그는 설정에서 응원 팀을 선택하세요.',
     'calendar.emptyDay': '이 날짜에 경기가 없습니다.',
+    'calendar.emptyDayWcHint': '이 날짜에는 월드컵 경기가 없습니다. {date}에 {count}경기',
     'calendar.scheduled': '예정',
     'calendar.finished': '종료',
     'calendar.home': '홈',
@@ -270,7 +272,9 @@ const I18N = {
     'calendar.next': 'Next',
     'calendar.loading': 'Loading schedule...',
     'calendar.noTeams': 'Select teams or nations in Settings to see their schedule.',
+    'calendar.otherSportsHint': 'World Cup shows automatically. Select favorite teams in Settings for MLB, NBA, and other leagues.',
     'calendar.emptyDay': 'No games on this day.',
+    'calendar.emptyDayWcHint': 'No World Cup matches today. {count} on {date}',
     'calendar.scheduled': 'Scheduled',
     'calendar.finished': 'Final',
     'calendar.home': 'Home',
@@ -437,6 +441,7 @@ const calendarViewEl = document.getElementById('calendar-view');
 const calendarEventsListEl = document.getElementById('calendar-events-list');
 const calDateStripEl = document.getElementById('cal-date-strip');
 const calNationBarEl = document.getElementById('cal-nation-bar');
+const calOtherSportsHintEl = document.getElementById('cal-other-sports-hint');
 const calMonthLabelEl = document.getElementById('cal-month-label');
 const calTodayBtn = document.getElementById('cal-today-btn');
 const calPrevMonthBtn = document.getElementById('cal-prev-month');
@@ -677,6 +682,11 @@ let wcCupBracketData = null;
 let wcCupViewRoundKey = null;
 let calendarAnchorKey = null;
 let calendarCache = null;
+
+function invalidateCalendarCache(reload = false) {
+  calendarCache = null;
+  if (reload && currentView === 'calendar') void loadCalendarRange(true);
+}
 let calendarLoading = false;
 /** 월드컵 국가 전체 일정 보기 (null이면 즐겨찾기 전체 주간 일정) */
 let calendarNationFilter = null;
@@ -1800,6 +1810,7 @@ function addToFavorites(teamId, sport, leagueId = null) {
   renderAllGames();
   loadTeamGameStatus();
   loadNextGame();
+  invalidateCalendarCache(currentView === 'calendar');
 }
 
 // ── 게임 행 HTML ──
@@ -2489,6 +2500,7 @@ function attachSoccerTableEvents() {
     renderTeamCards();
     loadTeamGameStatus();
     loadNextGame();
+    invalidateCalendarCache(currentView === 'calendar');
     const isNowFav = favoriteTeams.some(
       (ft) => ft.sport === 'soccer' && String(ft.teamId) === String(teamId)
     );
@@ -2724,6 +2736,7 @@ function toggleWorldCupFavorite(teamId, row) {
   renderTeamCards();
   loadTeamGameStatus();
   loadNextGame();
+  invalidateCalendarCache(currentView === 'calendar');
   const isNowFav = favoriteTeams.some(
     (ft) => ft.sport === 'worldcup' && String(ft.teamId) === String(teamId)
   );
@@ -2918,6 +2931,14 @@ function calendarPeriodBounds(anchorKey) {
   return { startKey, endKey: weekEndKeyKst(startKey) };
 }
 
+function calendarRangeOverlapsWorldCup(startKey, endKey) {
+  return startKey <= WC_CALENDAR_END && endKey >= WC_CALENDAR_START;
+}
+
+function calendarCanLoadWithoutFavorites(bounds) {
+  return calendarRangeOverlapsWorldCup(bounds.startKey, bounds.endKey);
+}
+
 function calendarFetchFavorites() {
   if (calendarNationFilter) {
     return [{
@@ -2962,6 +2983,23 @@ function clearCalendarNationFilter() {
   calendarCache = null;
   calendarAnchorKey = kstTodayDateKey();
   void loadCalendarRange(true);
+}
+
+function hasNonWorldCupFavorites() {
+  return favoriteTeams.some((ft) => ft.sport !== 'worldcup');
+}
+
+function renderCalendarOtherSportsHint() {
+  if (!calOtherSportsHintEl) return;
+  ensureCalendarAnchorKey();
+  const bounds = calendarPeriodBounds(calendarAnchorKey);
+  const show = !calendarNationFilter
+    && calendarRangeOverlapsWorldCup(bounds.startKey, bounds.endKey)
+    && !hasNonWorldCupFavorites();
+  calOtherSportsHintEl.classList.toggle('hidden', !show);
+  if (show) {
+    calOtherSportsHintEl.textContent = t('calendar.otherSportsHint');
+  }
 }
 
 function renderCalendarNationBar() {
@@ -3178,10 +3216,34 @@ function renderCalendarDateStrip() {
   }
 }
 
+function calendarEmptyDayMessage(selectedKey) {
+  const events = calendarCache?.events || [];
+  const wcByDay = new Map();
+  for (const ev of events) {
+    if (ev.sport !== 'worldcup') continue;
+    const dk = kstDateKeyFromIso(ev.date);
+    wcByDay.set(dk, (wcByDay.get(dk) || 0) + 1);
+  }
+  if (!wcByDay.size) return t('calendar.emptyDay');
+  const weekStart = weekStartKeyKst(selectedKey);
+  const weekKeys = Array.from({ length: 7 }, (_, i) => addDaysToKstDateKey(weekStart, i));
+  const weekWc = weekKeys
+    .filter((k) => wcByDay.has(k))
+    .map((k) => ({ key: k, count: wcByDay.get(k) }));
+  if (!weekWc.length) return t('calendar.emptyDay');
+  const next = weekWc.find(({ key }) => key >= selectedKey) || weekWc[0];
+  return t('calendar.emptyDayWcHint', {
+    date: formatCalendarDayLabel(next.key),
+    count: next.count
+  });
+}
+
 function renderCalendarEventsList(selectedKey) {
   if (!calendarEventsListEl) return;
+  ensureCalendarAnchorKey();
+  const bounds = calendarPeriodBounds(calendarAnchorKey);
   const fetchFavs = calendarFetchFavorites();
-  if (!fetchFavs.length) {
+  if (!fetchFavs.length && !calendarCanLoadWithoutFavorites(bounds) && !calendarNationFilter) {
     calendarEventsListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(t('calendar.noTeams'))}</div>`;
     return;
   }
@@ -3200,7 +3262,7 @@ function renderCalendarEventsList(selectedKey) {
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   if (!dayEvents.length) {
-    calendarEventsListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(t('calendar.emptyDay'))}</div>`;
+    calendarEventsListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(calendarEmptyDayMessage(selectedKey))}</div>`;
     return;
   }
 
@@ -3228,6 +3290,7 @@ function renderCalendarEventsList(selectedKey) {
 function renderCalendar() {
   if (!calendarViewEl || calendarViewEl.classList.contains('hidden')) return;
   renderCalendarNationBar();
+  renderCalendarOtherSportsHint();
   ensureCalendarAnchorKey();
   const anchor = calendarAnchorKey || kstTodayDateKey();
   const nationMode = !!calendarNationFilter;
@@ -3249,14 +3312,14 @@ function renderCalendar() {
 }
 
 async function loadCalendarRange(force = false) {
+  ensureCalendarAnchorKey();
+  const bounds = calendarPeriodBounds(calendarAnchorKey);
   const fetchFavs = calendarFetchFavorites();
-  if (!fetchFavs.length) {
+  if (!fetchFavs.length && !calendarCanLoadWithoutFavorites(bounds) && !calendarNationFilter) {
     calendarCache = { events: [] };
     renderCalendar();
     return;
   }
-  ensureCalendarAnchorKey();
-  const bounds = calendarPeriodBounds(calendarAnchorKey);
   const cached = calendarCache;
   if (!force && cached && cached.startKey === bounds.startKey && cached.endKey === bounds.endKey) {
     renderCalendar();
@@ -3313,7 +3376,7 @@ function selectCalendarDate(key) {
 
 function activateCalendarView() {
   if (!calendarAnchorKey) calendarAnchorKey = kstTodayDateKey();
-  void loadCalendarRange();
+  void loadCalendarRange(true);
 }
 
 function activateWorldCupStandingsMode(mode) {
@@ -4054,9 +4117,7 @@ saveFavoriteBtn.addEventListener('click', () => {
   loadTeamGameStatus();
   loadNextGame();
   if (currentView === 'calendar') {
-    calendarCache = null;
-    calendarAnchorKey = null;
-    void loadCalendarRange(true);
+    invalidateCalendarCache(true);
   }
   setView('my-team');
 });

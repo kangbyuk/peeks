@@ -128,6 +128,18 @@ const SOCCER_LEAGUES = {
 
 /** ESPN 축구 리그 id — IPC에서 sport: worldcup 과 매핑 */
 const WC_LEAGUE_ID = 'fifa.world';
+const WC_CALENDAR_START = '2026-06-01';
+const WC_CALENDAR_END = '2026-07-25';
+
+function calendarRangeOverlapsWorldCup(startKey, endKey) {
+  return startKey <= WC_CALENDAR_END && endKey >= WC_CALENDAR_START;
+}
+
+function worldCupFetchBounds(startKey, endKey) {
+  const fetchStart = startKey > WC_CALENDAR_START ? startKey : WC_CALENDAR_START;
+  const fetchEnd = endKey < WC_CALENDAR_END ? endKey : WC_CALENDAR_END;
+  return fetchStart <= fetchEnd ? { fetchStart, fetchEnd } : null;
+}
 
 // 리그별 UEFA/강등 존 (inclusive rank ranges)
 const SOCCER_ZONES = {
@@ -1471,6 +1483,24 @@ function calendarLeagueLabel(sport, leagueId) {
   return labels[sport] || sport;
 }
 
+function worldCupCalendarEntryId(eventId) {
+  return `worldcup_${eventId}`;
+}
+
+/** 응원국 없이 WC 섹션에 넣을 때 — 홈 기준으로 표시 */
+function mapWcNeutralCalendarEntry(event) {
+  const competition = event.competitions?.[0];
+  const competitors = competition?.competitors || [];
+  const homeComp = competitors.find((c) => c.homeAway === 'home') || competitors[0];
+  const awayComp = competitors.find((c) => c.homeAway === 'away')
+    || competitors.find((c) => c !== homeComp);
+  if (!homeComp?.team?.id || !awayComp?.team?.id) return null;
+  const entry = mapEventToCalendarEntry(event, homeComp.team.id, 'worldcup', WC_LEAGUE_ID);
+  if (!entry) return null;
+  entry.id = worldCupCalendarEntryId(event.id);
+  return entry;
+}
+
 function mapEventToCalendarEntry(event, teamId, sport, leagueId) {
   const competition = event.competitions?.[0];
   const competitors = competition?.competitors || [];
@@ -1662,15 +1692,20 @@ async function fetchSoccerScoreboardEventsInRange(leagueId, startKey, endKey) {
 }
 
 async function fetchCalendarForFavorites(favorites, startKey, endKey) {
-  if (!Array.isArray(favorites) || !favorites.length || !startKey || !endKey) {
+  if (!startKey || !endKey) {
     return { events: [], fetchedAt: new Date().toISOString() };
+  }
+  const favList = Array.isArray(favorites) ? favorites : [];
+  const wcOnly = !favList.length && calendarRangeOverlapsWorldCup(startKey, endKey);
+  if (!favList.length && !wcOnly) {
+    return { events: [], fetchedAt: new Date().toISOString(), startKey, endKey };
   }
 
   const seen = new Set();
   const events = [];
   const uniqFavs = [];
   const favKeys = new Set();
-  for (const f of favorites) {
+  for (const f of favList) {
     if (!f?.teamId || !f?.sport) continue;
     const k = `${f.sport}_${f.teamId}_${f.leagueId || ''}`;
     if (favKeys.has(k)) continue;
@@ -1704,19 +1739,30 @@ async function fetchCalendarForFavorites(favorites, startKey, endKey) {
     }
   }
 
-  // 월드컵: ESPN 팀 schedule은 거의 비어 있음 → 리그 스코어보드(기간)에서 응원국 경기 추출
-  if (wcFavs.length) {
-    const wcEvents = await fetchSoccerScoreboardEventsInRange(WC_LEAGUE_ID, startKey, endKey);
-    for (const ev of wcEvents) {
-      const comps = ev.competitions?.[0]?.competitors || [];
-      for (const fav of wcFavs) {
-        const tid = String(fav.teamId);
-        if (!comps.some((c) => String(c.team?.id) === tid)) continue;
+  // 월드컵: 기간이 WC 대회와 겹치면 스코어보드에서 일정 포함 (팀 schedule API는 거의 비어 있음)
+  if (calendarRangeOverlapsWorldCup(startKey, endKey)) {
+    const wcBounds = worldCupFetchBounds(startKey, endKey);
+    if (wcBounds) {
+      const { fetchStart, fetchEnd } = wcBounds;
+      const wcEvents = await fetchSoccerScoreboardEventsInRange(WC_LEAGUE_ID, fetchStart, fetchEnd);
+      for (const ev of wcEvents) {
         const dk = kstDateKeyFromIso(ev.date);
         if (!isDateKeyInRange(dk, startKey, endKey)) continue;
-        const entry = mapEventToCalendarEntry(ev, tid, 'worldcup', WC_LEAGUE_ID);
-        if (entry && !seen.has(entry.id)) {
-          seen.add(entry.id);
+        const eKey = worldCupCalendarEntryId(ev.id);
+        if (seen.has(eKey)) continue;
+
+        const comps = ev.competitions?.[0]?.competitors || [];
+        let entry = null;
+        if (wcFavs.length) {
+          const fav = wcFavs.find((f) => comps.some((c) => String(c.team?.id) === String(f.teamId)));
+          if (!fav) continue;
+          entry = mapEventToCalendarEntry(ev, fav.teamId, 'worldcup', WC_LEAGUE_ID);
+          if (entry) entry.id = eKey;
+        } else {
+          entry = mapWcNeutralCalendarEntry(ev);
+        }
+        if (entry) {
+          seen.add(eKey);
           events.push(entry);
         }
       }

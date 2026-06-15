@@ -2657,6 +2657,15 @@ body.coder-mode .empty-state-btn {
   border: 1px solid rgba(77, 140, 255, 0.22);
 }
 
+.cal-other-sports-hint {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  font-size: 9px;
+  line-height: 1.35;
+  color: #8fa3bc;
+  text-align: center;
+}
+
 .cal-nation-back {
   padding: 2px 6px;
   font-size: 9px;
