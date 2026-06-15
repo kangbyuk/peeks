@@ -1039,7 +1039,7 @@ function mapTeamGameStatus(event, teamId, sport = 'nba') {
   if (!myTeam) return null;
 
   const opponent = competitors.find((c) => String(c.team?.id) !== String(teamId));
-  const statusType = event.status?.type || {};
+  const statusType = event.status?.type || competition?.status?.type || {};
   const state = statusType.state;
   const detail = event.status?.type?.detail || '';
   const shortDetail = event.status?.type?.shortDetail || detail;

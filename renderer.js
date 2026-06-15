@@ -168,6 +168,9 @@ const I18N = {
     'calendar.scheduled': '예정',
     'calendar.finished': '종료',
     'calendar.home': '홈',
+    'calendar.nationSchedule': '{name} · 전체 일정',
+    'calendar.backAll': '← 전체',
+    'calendar.wcEmpty': '월드컵 일정이 없습니다.',
     'standings.nbaPlayoff': '플레이오프',
     'standings.nbaRegular': '정규시즌',
     'standings.nbaBracketFoot': '라운드·시리즈 전적은 ESPN 포스트시즌 일정을 기준으로 묶었습니다. 다음 라운드 상대는 경기가 잡히면 표시됩니다.',
@@ -271,6 +274,9 @@ const I18N = {
     'calendar.scheduled': 'Scheduled',
     'calendar.finished': 'Final',
     'calendar.home': 'Home',
+    'calendar.nationSchedule': '{name} · Full schedule',
+    'calendar.backAll': '← All',
+    'calendar.wcEmpty': 'No World Cup matches scheduled.',
     'standings.nbaPlayoff': 'Playoffs',
     'standings.nbaRegular': 'Regular season',
     'standings.nbaBracketFoot': 'Rounds and series are grouped from ESPN’s postseason schedule. Next-round matchups appear when games are scheduled.',
@@ -430,6 +436,7 @@ const calendarBtn = document.getElementById('calendar-btn');
 const calendarViewEl = document.getElementById('calendar-view');
 const calendarEventsListEl = document.getElementById('calendar-events-list');
 const calDateStripEl = document.getElementById('cal-date-strip');
+const calNationBarEl = document.getElementById('cal-nation-bar');
 const calMonthLabelEl = document.getElementById('cal-month-label');
 const calTodayBtn = document.getElementById('cal-today-btn');
 const calPrevMonthBtn = document.getElementById('cal-prev-month');
@@ -500,6 +507,10 @@ function loadFavoriteTeams() {
       let migrated = false;
       teams = teams.map((ft) => {
         if (ft.sport === 'epl') { migrated = true; return { ...ft, sport: 'soccer', leagueId: 'eng.1' }; }
+        if (ft.sport === 'worldcup' && ft.leagueId !== WC_LEAGUE_ID) {
+          migrated = true;
+          return { ...ft, leagueId: WC_LEAGUE_ID };
+        }
         return ft;
       });
       if (migrated) localStorage.setItem(FAVORITE_TEAMS_KEY, JSON.stringify(teams));
@@ -667,6 +678,11 @@ let wcCupViewRoundKey = null;
 let calendarAnchorKey = null;
 let calendarCache = null;
 let calendarLoading = false;
+/** 월드컵 국가 전체 일정 보기 (null이면 즐겨찾기 전체 주간 일정) */
+let calendarNationFilter = null;
+const WC_CALENDAR_START = '2026-06-01';
+const WC_CALENDAR_END = '2026-07-25';
+const CARD_CLICK_MOVE_PX = 6;
 /** 야구 서브: 팀 설정(MLB/KBO) */
 let activeBaseballSetupLeague = 'mlb';
 /** 야구 서브: 오늘 경기(MLB/KBO) */
@@ -1586,7 +1602,10 @@ function favoriteTeamsBaseOrderFromDomOrder(domOrder) {
 function favoriteStatusMatchKey(ft) {
   const st = teamGameStatuses[favoriteCardStatusKey(ft)];
   if (!st?.matchKey || !['live', 'pre', 'post'].includes(st.mode)) return null;
-  return `${ft.sport}:${ft.leagueId || ''}:${st.matchKey}`;
+  // 월드컵: 응원국 둘이 맞붙으면 leagueId 유무와 관계없이 동일 경기로 묶음
+  if (ft.sport === 'worldcup') return `worldcup:${st.matchKey}`;
+  const lid = ft.leagueId || (ft.sport === 'soccer' ? 'eng.1' : '');
+  return `${ft.sport}:${lid}:${st.matchKey}`;
 }
 
 /** 동일 경기에 즐겨찾기가 둘 이상이면 favoriteTeams 배열 순서가 빠른 쪽만 카드로 표시 */
@@ -1710,8 +1729,12 @@ function renderTeamCards() {
         console.error(`[renderCard] footerHTML 오류 (${key}):`, e);
       }
 
+      const wcClick = sport === 'worldcup';
+      const wcTitle = wcClick
+        ? ` title="${escapeHtmlText(t('calendar.nationSchedule', { name: teamName }))}"`
+        : '';
       return `
-        <div class="team-card" data-key="${key}" data-team-id="${teamId}" data-sport="${sport}" data-league="${leagueId || ''}" style="--accent:${accent}">
+        <div class="team-card${wcClick ? ' team-card--clickable' : ''}" data-key="${key}" data-team-id="${teamId}" data-sport="${sport}" data-league="${leagueId || ''}" style="--accent:${accent}"${wcTitle}>
           <div class="card-header">
             <div class="card-header-left">
               ${logoHtml}
@@ -2353,7 +2376,7 @@ function teamRow(r, sport, opts) {
       : '';
     const favMark = isFav ? '<span class="epl-fav-mark">★</span>' : '';
     return `
-      <tr class="" data-team-id="${r.teamId}" data-sport="worldcup" data-league="${leagueId}">
+      <tr class="wc-nation-row" data-team-id="${r.teamId}" data-sport="worldcup" data-league="${leagueId}">
         <td class="col-rank">${r.rank ?? ''}</td>
         <td class="col-epl-logo">${logoHtml}</td>
         <td class="col-team team">${escapeHtmlText(worldCupNationDisplayName(r))}${favMark}</td>
@@ -2683,6 +2706,36 @@ function renderWorldCupGroupTables() {
   attachWorldCupGroupEvents();
 }
 
+function toggleWorldCupFavorite(teamId, row) {
+  const idx = favoriteTeams.findIndex(
+    (ft) => ft.sport === 'worldcup' && String(ft.teamId) === String(teamId)
+  );
+  if (idx >= 0) {
+    favoriteTeams = favoriteTeams.filter((_, i) => i !== idx);
+  } else {
+    favoriteTeams = [
+      ...favoriteTeams,
+      { teamId, sport: 'worldcup', leagueId: WC_LEAGUE_ID }
+    ];
+    const nm = row?.querySelector('.col-team')?.textContent?.replace(/★/g, '').trim() || String(teamId);
+    gaTrack('add_team', { team_name: nm, sport: 'worldcup', league_id: WC_LEAGUE_ID });
+  }
+  localStorage.setItem(FAVORITE_TEAMS_KEY, JSON.stringify(favoriteTeams));
+  renderTeamCards();
+  loadTeamGameStatus();
+  loadNextGame();
+  const isNowFav = favoriteTeams.some(
+    (ft) => ft.sport === 'worldcup' && String(ft.teamId) === String(teamId)
+  );
+  const mark = row?.querySelector('.epl-fav-mark');
+  const nameCell = row?.querySelector('.col-team');
+  if (isNowFav && !mark && nameCell) {
+    nameCell.insertAdjacentHTML('beforeend', '<span class="epl-fav-mark">★</span>');
+  } else if (!isNowFav && mark) {
+    mark.remove();
+  }
+}
+
 function attachWorldCupGroupEvents() {
   if (!worldcupGroupsWrapEl || worldcupGroupsWrapEl._wcGroupClickBound) return;
   worldcupGroupsWrapEl._wcGroupClickBound = true;
@@ -2690,33 +2743,12 @@ function attachWorldCupGroupEvents() {
     const row = e.target.closest('tr[data-team-id][data-sport="worldcup"]');
     if (!row) return;
     const teamId = row.dataset.teamId;
-    const idx = favoriteTeams.findIndex(
-      (ft) => ft.sport === 'worldcup' && String(ft.teamId) === String(teamId)
-    );
-    if (idx >= 0) {
-      favoriteTeams = favoriteTeams.filter((_, i) => i !== idx);
-    } else {
-      favoriteTeams = [
-        ...favoriteTeams,
-        { teamId, sport: 'worldcup', leagueId: WC_LEAGUE_ID }
-      ];
-      const nm = row.querySelector('.col-team')?.textContent?.replace(/★/g, '').trim() || String(teamId);
-      gaTrack('add_team', { team_name: nm, sport: 'worldcup', league_id: WC_LEAGUE_ID });
+    if (e.target.closest('.col-rank, .col-epl-logo, .epl-fav-mark')) {
+      toggleWorldCupFavorite(teamId, row);
+      return;
     }
-    localStorage.setItem(FAVORITE_TEAMS_KEY, JSON.stringify(favoriteTeams));
-    renderTeamCards();
-    loadTeamGameStatus();
-    loadNextGame();
-    const isNowFav = favoriteTeams.some(
-      (ft) => ft.sport === 'worldcup' && String(ft.teamId) === String(teamId)
-    );
-    const mark = row.querySelector('.epl-fav-mark');
-    const nameCell = row.querySelector('.col-team');
-    if (isNowFav && !mark && nameCell) {
-      nameCell.insertAdjacentHTML('beforeend', '<span class="epl-fav-mark">★</span>');
-    } else if (!isNowFav && mark) {
-      mark.remove();
-    }
+    const name = row.querySelector('.col-team')?.textContent?.replace(/★/g, '').trim();
+    openWorldCupNationSchedule(teamId, name);
   });
 }
 
@@ -2879,8 +2911,95 @@ function formatCalendarTime(isoDateStr) {
 }
 
 function calendarPeriodBounds(anchorKey) {
+  if (calendarNationFilter?.sport === 'worldcup') {
+    return { startKey: WC_CALENDAR_START, endKey: WC_CALENDAR_END };
+  }
   const startKey = weekStartKeyKst(anchorKey);
   return { startKey, endKey: weekEndKeyKst(startKey) };
+}
+
+function calendarFetchFavorites() {
+  if (calendarNationFilter) {
+    return [{
+      teamId: calendarNationFilter.teamId,
+      sport: calendarNationFilter.sport,
+      leagueId: calendarNationFilter.leagueId || WC_LEAGUE_ID
+    }];
+  }
+  return favoriteTeams;
+}
+
+function pickCalendarAnchorForNationEvents(events) {
+  const today = kstTodayDateKey();
+  const keys = [...new Set((events || []).map((ev) => kstDateKeyFromIso(ev.date)))].sort();
+  if (!keys.length) {
+    if (today >= WC_CALENDAR_START && today <= WC_CALENDAR_END) return today;
+    return WC_CALENDAR_START;
+  }
+  const upcoming = keys.find((k) => k >= today);
+  return upcoming || keys[keys.length - 1];
+}
+
+function openWorldCupNationSchedule(teamId, label) {
+  if (!teamId) return;
+  const team = findTeam(teamId, 'worldcup', WC_LEAGUE_ID);
+  const disp = label || (team ? worldCupNationDisplayName(team) : String(teamId));
+  calendarNationFilter = {
+    teamId: String(teamId),
+    sport: 'worldcup',
+    leagueId: WC_LEAGUE_ID,
+    label: disp
+  };
+  calendarCache = null;
+  calendarAnchorKey = WC_CALENDAR_START;
+  setView('calendar');
+  void loadCalendarRange(true);
+}
+
+function clearCalendarNationFilter() {
+  if (!calendarNationFilter) return;
+  calendarNationFilter = null;
+  calendarCache = null;
+  calendarAnchorKey = kstTodayDateKey();
+  void loadCalendarRange(true);
+}
+
+function renderCalendarNationBar() {
+  if (!calNationBarEl) return;
+  if (!calendarNationFilter) {
+    calNationBarEl.classList.add('hidden');
+    calNationBarEl.innerHTML = '';
+    return;
+  }
+  const title = t('calendar.nationSchedule', { name: calendarNationFilter.label });
+  calNationBarEl.classList.remove('hidden');
+  calNationBarEl.innerHTML = `
+    <button type="button" class="cal-nation-back" id="cal-nation-back">${escapeHtmlText(t('calendar.backAll'))}</button>
+    <span class="cal-nation-title">${escapeHtmlText(title)}</span>`;
+  document.getElementById('cal-nation-back')?.addEventListener('click', clearCalendarNationFilter);
+}
+
+function renderCalendarNationFullList(events) {
+  const sorted = [...(events || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (!sorted.length) {
+    calendarEventsListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(t('calendar.wcEmpty'))}</div>`;
+    return;
+  }
+  const byDay = new Map();
+  for (const ev of sorted) {
+    const dk = kstDateKeyFromIso(ev.date);
+    if (!byDay.has(dk)) byDay.set(dk, []);
+    byDay.get(dk).push(ev);
+  }
+  calendarEventsListEl.innerHTML = [...byDay.entries()].map(([dk, items]) => {
+    const rows = items.map((item) => calendarMatchRowHTML(item)).join('');
+    return `<section class="cal-section cal-section--day">
+      <header class="cal-section-head cal-section-head--day">
+        <span class="cal-section-title">${escapeHtmlText(formatCalendarDayLabel(dk))}</span>
+      </header>
+      <div class="cal-section-body">${rows}</div>
+    </section>`;
+  }).join('');
 }
 
 function formatCalendarScore(score) {
@@ -3008,6 +3127,12 @@ function calendarMatchRowHTML(ev) {
 
 function renderCalendarDateStrip() {
   if (!calDateStripEl) return;
+  if (calendarNationFilter) {
+    calDateStripEl.innerHTML = '';
+    calDateStripEl.classList.add('hidden');
+    return;
+  }
+  calDateStripEl.classList.remove('hidden');
   ensureCalendarAnchorKey();
   const anchor = calendarAnchorKey || kstTodayDateKey();
   const today = kstTodayDateKey();
@@ -3055,12 +3180,18 @@ function renderCalendarDateStrip() {
 
 function renderCalendarEventsList(selectedKey) {
   if (!calendarEventsListEl) return;
-  if (!favoriteTeams.length) {
+  const fetchFavs = calendarFetchFavorites();
+  if (!fetchFavs.length) {
     calendarEventsListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(t('calendar.noTeams'))}</div>`;
     return;
   }
   if (calendarLoading || !calendarCache) {
     calendarEventsListEl.innerHTML = `<div class="gr-empty">${escapeHtmlText(t('calendar.loading'))}</div>`;
+    return;
+  }
+
+  if (calendarNationFilter) {
+    renderCalendarNationFullList(calendarCache.events || []);
     return;
   }
 
@@ -3096,18 +3227,30 @@ function renderCalendarEventsList(selectedKey) {
 
 function renderCalendar() {
   if (!calendarViewEl || calendarViewEl.classList.contains('hidden')) return;
+  renderCalendarNationBar();
   ensureCalendarAnchorKey();
   const anchor = calendarAnchorKey || kstTodayDateKey();
+  const nationMode = !!calendarNationFilter;
+
+  calTodayBtn?.classList.toggle('hidden', nationMode);
+  calPrevMonthBtn?.classList.toggle('hidden', nationMode);
+  calNextMonthBtn?.classList.toggle('hidden', nationMode);
 
   if (calMonthLabelEl) {
-    calMonthLabelEl.textContent = formatCalendarMonthLabel(anchor);
+    if (calendarNationFilter) {
+      calMonthLabelEl.textContent = formatCalendarMonthLabel(WC_CALENDAR_START)
+        + ' – ' + formatCalendarMonthLabel(WC_CALENDAR_END).slice(5);
+    } else {
+      calMonthLabelEl.textContent = formatCalendarMonthLabel(anchor);
+    }
   }
   renderCalendarDateStrip();
   renderCalendarEventsList(anchor);
 }
 
 async function loadCalendarRange(force = false) {
-  if (!favoriteTeams.length) {
+  const fetchFavs = calendarFetchFavorites();
+  if (!fetchFavs.length) {
     calendarCache = { events: [] };
     renderCalendar();
     return;
@@ -3123,16 +3266,20 @@ async function loadCalendarRange(force = false) {
   renderCalendar();
   try {
     const data = await window.standingsAPI.fetchCalendarRange(
-      favoriteTeams,
+      fetchFavs,
       bounds.startKey,
       bounds.endKey
     );
+    const events = Array.isArray(data?.events) ? data.events : [];
     calendarCache = {
-      events: Array.isArray(data?.events) ? data.events : [],
+      events,
       startKey: bounds.startKey,
       endKey: bounds.endKey,
       fetchedAt: data?.fetchedAt || new Date().toISOString()
     };
+    if (calendarNationFilter && !calendarAnchorKey) {
+      calendarAnchorKey = pickCalendarAnchorForNationEvents(events);
+    }
   } catch (e) {
     console.error('[calendar] fetch 실패', e);
     calendarCache = { events: [], startKey: bounds.startKey, endKey: bounds.endKey };
@@ -3142,6 +3289,7 @@ async function loadCalendarRange(force = false) {
 }
 
 function shiftCalendarWeek(delta) {
+  if (calendarNationFilter) return;
   ensureCalendarAnchorKey();
   calendarAnchorKey = addDaysToKstDateKey(calendarAnchorKey || kstTodayDateKey(), 7 * delta);
   calendarCache = null;
@@ -3805,10 +3953,12 @@ calDateStripEl?.addEventListener('click', (e) => {
 
 calendarBtn?.addEventListener('click', () => {
   if (currentView === 'calendar') {
+    if (calendarNationFilter) clearCalendarNationFilter();
     renderTeamCards();
     setView('my-team');
     return;
   }
+  calendarNationFilter = null;
   setView('calendar');
 });
 
@@ -4007,7 +4157,12 @@ function syncFavoriteTeamsOrderFromDom(listEl) {
 
 function onFavoriteCardPointerMove(e) {
   if (!favoriteCardPointerDrag || e.pointerId !== favoriteCardPointerDrag.pointerId) return;
-  const { card, list } = favoriteCardPointerDrag;
+  const { card, list, startX, startY } = favoriteCardPointerDrag;
+  if (!favoriteCardPointerDrag.moved) {
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (Math.hypot(dx, dy) > CARD_CLICK_MOVE_PX) favoriteCardPointerDrag.moved = true;
+  }
   const after = getCardInsertBeforeFromPointerY(list, e.clientY, card);
   if (after == null) {
     list.appendChild(card);
@@ -4041,7 +4196,14 @@ function finalizeFavoriteCardDrag(syncOrder) {
 function endFavoriteCardPointerDrag(e) {
   if (!favoriteCardPointerDrag) return;
   if (e && e.pointerId !== favoriteCardPointerDrag.pointerId) return;
-  finalizeFavoriteCardDrag(true);
+  const { card, moved } = favoriteCardPointerDrag;
+  const isWcClick = !moved && card?.dataset.sport === 'worldcup';
+  finalizeFavoriteCardDrag(!isWcClick);
+  if (isWcClick) {
+    const teamId = card.dataset.teamId;
+    const name = card.querySelector('.card-team-name')?.textContent?.trim();
+    openWorldCupNationSchedule(teamId, name);
+  }
 }
 
 myTeamsListEl?.addEventListener('pointerdown', (e) => {
@@ -4052,7 +4214,10 @@ myTeamsListEl?.addEventListener('pointerdown', (e) => {
   if (favoriteCardPointerDrag) finalizeFavoriteCardDrag(true);
 
   e.preventDefault(); // 텍스트 선택·이미지 기본 드래그 완화
-  favoriteCardPointerDrag = { card, list: myTeamsListEl, pointerId: e.pointerId };
+  favoriteCardPointerDrag = {
+    card, list: myTeamsListEl, pointerId: e.pointerId,
+    startX: e.clientX, startY: e.clientY, moved: false
+  };
   card.classList.add('dragging');
   myTeamsListEl.classList.add('is-reordering');
   try {
