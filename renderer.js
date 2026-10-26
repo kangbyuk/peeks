@@ -2663,6 +2663,29 @@ function setLoadingPlaceholders() {
 }
 
 // ── 순위 탭 종목 전환 ──
+function soccerLeaguesNeedingRefresh() {
+  const ids = new Set(getSoccerLeagueIdsToPrefetch());
+  for (const [lid, loaded] of Object.entries(soccerStandingsLoaded)) {
+    if (loaded) ids.add(lid);
+  }
+  if (activeStandingsSport === 'soccer' && activeSoccerLeague) ids.add(activeSoccerLeague);
+  if (activeStandingsSport === 'worldcup') ids.add(WC_LEAGUE_ID);
+  return [...ids].filter(Boolean);
+}
+
+async function refreshAllStandings(options = {}) {
+  const jobs = [loadStandings(options)];
+  const wantMlb =
+    mlbStandingsLoaded
+    || favoriteTeams.some((ft) => ft.sport === 'mlb')
+    || activeStandingsSport === 'mlb';
+  if (wantMlb) jobs.push(loadMlbStandings({ quiet: mlbStandingsLoaded }));
+  for (const lid of soccerLeaguesNeedingRefresh()) {
+    jobs.push(loadSoccerLeagueData(lid));
+  }
+  await Promise.all(jobs);
+}
+
 function activateStandingsTab(sport) {
   activeStandingsSport = sport;
   document.querySelectorAll('.standings-tab').forEach((btn) => {
@@ -2685,8 +2708,10 @@ function activateStandingsTab(sport) {
     if (sport === 'mlb') syncMlbStandingsSubtabUi();
   }
   mlbStandingsLegendEl?.classList.toggle('hidden', sport !== 'mlb');
-  if (sport === 'mlb' && !mlbStandingsLoaded) loadMlbStandings();
-  if (sport === 'mlb' && mlbStandingsLoaded && cachedMlbStandingsResult) applyMlbStandingsUi(cachedMlbStandingsResult);
+  if (sport === 'mlb') {
+    if (mlbStandingsLoaded && cachedMlbStandingsResult) applyMlbStandingsUi(cachedMlbStandingsResult);
+    void loadMlbStandings({ quiet: mlbStandingsLoaded });
+  }
   if (sport === 'worldcup') activateWorldCupStandingsView();
 }
 
@@ -3388,6 +3413,7 @@ function activateWorldCupStandingsMode(mode) {
     worldcupKnockoutWrapEl?.classList.add('hidden');
     if (soccerStandingsLoaded[WC_LEAGUE_ID]) {
       renderWorldCupGroupTables();
+      void loadSoccerLeagueData(WC_LEAGUE_ID);
     } else {
       void loadSoccerLeagueData(WC_LEAGUE_ID);
     }
@@ -3429,6 +3455,7 @@ function activateSoccerStandingsTab(leagueId) {
     } else if (teams.length && soccerStdBodyEl) {
       renderRows(soccerStdBodyEl, teams, 'soccer');
     }
+    void loadSoccerLeagueData(leagueId);
   } else {
     loadSoccerStandingsForTable(leagueId);
   }
@@ -3652,9 +3679,12 @@ function renderUefaCupBracket(container) {
 }
 
 // ── MLB 순위 로드 ──
-async function loadMlbStandings() {
-  if (mlbAmericanDivisionsEl) mlbAmericanDivisionsEl.innerHTML = mlbDivisionsLoadingHtml(t('allGames.loadingGeneric'));
-  if (mlbNationalDivisionsEl) mlbNationalDivisionsEl.innerHTML = mlbDivisionsLoadingHtml(t('allGames.loadingGeneric'));
+async function loadMlbStandings(options = {}) {
+  const quiet = !!options.quiet;
+  if (!quiet) {
+    if (mlbAmericanDivisionsEl) mlbAmericanDivisionsEl.innerHTML = mlbDivisionsLoadingHtml(t('allGames.loadingGeneric'));
+    if (mlbNationalDivisionsEl) mlbNationalDivisionsEl.innerHTML = mlbDivisionsLoadingHtml(t('allGames.loadingGeneric'));
+  }
 
   // 설정 체크박스도 로딩 중 표시 (아직 비어 있을 때만)
   if (!mlbTeams.length) {
@@ -3817,7 +3847,11 @@ async function updateScores() {
           : activeGamesSport === 'baseball' && allGamesOpen
             ? Promise.all(['mlb', 'kbo'].map((s) => loadAllGames(s)))
             : loadAllGames(activeGamesSport === 'baseball' ? activeBaseballGamesLeague : activeGamesSport);
-    await Promise.all([loadStandings({ bypassNbaCache: true }), loadTeamGameStatus(), gamesLoads]);
+    await Promise.all([
+      refreshAllStandings({ bypassNbaCache: true, clearNbaCache: true }),
+      loadTeamGameStatus(),
+      gamesLoads
+    ]);
     syncSoccerGamesSubtabsVisibility();
   } finally {
     isRefreshing = false;
@@ -4441,7 +4475,7 @@ function scheduleMidnightRefresh() {
     allGamesSeasonPhase = { nba: null, mlb: null };
     soccerGamesCache = {};
     soccerStandingsLoaded = {};
-    loadStandings({ clearNbaCache: true });
+    void refreshAllStandings({ clearNbaCache: true, bypassNbaCache: true });
     loadTeamGameStatus();
     if (activeGamesSport === 'soccer' && allGamesOpen) {
       SOCCER_LEAGUE_IDS.forEach((lid) => loadAllGames('soccer', lid));
@@ -4475,7 +4509,7 @@ syncNbaStandingsSubtabUi();
 renderTeamCards();               // empty state 초기 동기화
 setView('my-team');              // 항상 홈 화면으로 시작 (팀 없으면 empty state 표시)
 loadStandings();
-setInterval(() => loadStandings({ bypassNbaCache: true, clearNbaCache: true }), REFRESH_INTERVAL_MS);
+setInterval(() => void refreshAllStandings({ bypassNbaCache: true, clearNbaCache: true }), REFRESH_INTERVAL_MS);
 
 // 관심 등록된 soccer 리그 데이터 선로딩 (지연 로드 — UI 렌더 후)
 const favSoccerLeagues = getSoccerLeagueIdsToPrefetch();

@@ -153,11 +153,12 @@ const SOCCER_ZONES = {
 };
 
 function getSoccerUrls(leagueId, type = 'scoreboard') {
+  const bust = `_=${Date.now()}`;
   const path = type === 'standings'
-    ? `https://site.api.espn.com/apis/v2/sports/soccer/${leagueId}/standings`
+    ? `https://site.api.espn.com/apis/v2/sports/soccer/${leagueId}/standings?${bust}`
     : `https://site.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/scoreboard`;
   const pathWeb = type === 'standings'
-    ? `https://site.web.api.espn.com/apis/v2/sports/soccer/${leagueId}/standings`
+    ? `https://site.web.api.espn.com/apis/v2/sports/soccer/${leagueId}/standings?${bust}`
     : `https://site.web.api.espn.com/apis/site/v2/sports/soccer/${leagueId}/scoreboard`;
   return [path, pathWeb];
 }
@@ -255,6 +256,14 @@ function extractScoreboardSeasonPhase(data, sport) {
 /** KST 기준 달력 연도 (MLB season=YYYY 등에 사용) */
 function yearKST() {
   return Number(todayKST().slice(0, 4));
+}
+
+/** ESPN NBA season=종료연도. 10월 개막 시즌은 달력연도+1 (2026-27 → 2027) */
+function nbaSeasonYearKST() {
+  const key = todayKST();
+  const y = Number(key.slice(0, 4));
+  const m = Number(key.slice(5, 7));
+  return m >= 10 ? y + 1 : y;
 }
 
 const HTTP_HEADERS = {
@@ -686,7 +695,7 @@ async function fetchSoccerStandings(leagueId = 'eng.1') {
 
 /** ESPN: seasontype 2=정규, 3=포스트시즌(플레이오프) */
 function getNbaStandingsUrls(seasonType = 2) {
-  const y = yearKST();
+  const y = nbaSeasonYearKST();
   const bust = Date.now();
   const q = `season=${y}&seasontype=${seasonType}&_=${bust}`;
   return [
