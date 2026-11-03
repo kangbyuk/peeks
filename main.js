@@ -1015,7 +1015,8 @@ function parseNbaPlayoffScoreboardEvents(events) {
 }
 
 async function fetchNbaPlayoffBracket() {
-  const y = yearKST();
+  // 10–12월에는 새 시즌(종료연도) 기준 — 지난 시즌 플레이오프 대진이 남지 않도록
+  const y = nbaSeasonYearKST();
   const dates = `${y}0401-${y}0701`;
   const qs = `dates=${dates}&seasontype=3&limit=500`;
   const urls = [

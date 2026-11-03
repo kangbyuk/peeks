@@ -634,18 +634,36 @@ function getNbaStandingsDefaultMode() {
   return m >= 4 && m <= 7 ? 'playoff' : 'regular';
 }
 
+/** ESPN NBA season=종료연도 (main.js nbaSeasonYearKST와 동일) */
+function getNbaSeasonYearKST() {
+  const y = Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', year: 'numeric' }).format(new Date())
+  );
+  return getNbaKstMonth() >= 10 ? y + 1 : y;
+}
+
+/** 저장값 { mode, season } — 시즌이 바뀌면 무시하고 기본값(시기별)으로 (지난 시즌 플옵 탭 고정 방지) */
 function readStoredNbaStandingsMode() {
   try {
-    const s = localStorage.getItem(NBA_STANDINGS_MODE_KEY);
-    if (s === 'playoff' || s === 'regular') return s;
-  } catch (_) { /* noop */ }
+    const saved = JSON.parse(localStorage.getItem(NBA_STANDINGS_MODE_KEY) || 'null');
+    if (
+      saved
+      && (saved.mode === 'playoff' || saved.mode === 'regular')
+      && saved.season === getNbaSeasonYearKST()
+    ) {
+      return saved.mode;
+    }
+  } catch (_) { /* noop — 구버전 문자열 저장값 포함 */ }
   return getNbaStandingsDefaultMode();
 }
 
 function persistNbaStandingsMode(mode) {
   try {
     if (mode === 'playoff' || mode === 'regular') {
-      localStorage.setItem(NBA_STANDINGS_MODE_KEY, mode);
+      localStorage.setItem(
+        NBA_STANDINGS_MODE_KEY,
+        JSON.stringify({ mode, season: getNbaSeasonYearKST() })
+      );
     }
   } catch (_) { /* noop */ }
 }
