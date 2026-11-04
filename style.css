@@ -96,10 +96,10 @@ body.ghost-mode .widget:hover {
   flex-shrink: 0;
   /* 본문은 별도 스크롤 영역이라 헤더 배경 불필요 — 글래스가 그대로 보이게 */
   background: transparent;
-  /* top/bottom: 신호등(y:16, h:12) 중심이 top-bar 수직 중앙에 오도록
-     전체 높이 ≈ 44px → padding top 14px / bottom 10px
+  /* 신호등(trafficLightPosition y:16, 높이 ~14) 중심 ≈ 23px 에
+     로고·아이콘(26px) 중심을 맞춤: 1(widget 상단) + 9 + 13 = 23
      left 82px: 신호등 우측 끝(~66px) + PEEKS 로고 여유 16px */
-  padding: 14px 8px 10px 82px;
+  padding: 9px 8px 9px 82px;
   margin: 0 -10px;               /* 드래그 영역을 창 좌우 끝까지 확장 */
   border-bottom: 1px solid var(--hairline);
   border-radius: 12px 12px 0 0;

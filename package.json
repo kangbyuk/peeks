@@ -1,6 +1,6 @@
 {
   "name": "peeks",
-  "version": "1.2.10",
+  "version": "1.2.11",
   "description": "PEEKS — always-on-top sports widget built with Electron",
   "main": "main.js",
   "scripts": {
