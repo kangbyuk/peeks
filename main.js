@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
@@ -130,9 +130,11 @@ const SOCCER_LEAGUES = {
 const WC_LEAGUE_ID = 'fifa.world';
 const WC_CALENDAR_START = '2026-06-01';
 const WC_CALENDAR_END = '2026-07-25';
+/** 월드컵 기능 노출 스위치 (renderer.js 와 동일하게) — 꺼지면 달력에 WC 경기 자동 포함 안 함 */
+const WORLD_CUP_ENABLED = false;
 
 function calendarRangeOverlapsWorldCup(startKey, endKey) {
-  return startKey <= WC_CALENDAR_END && endKey >= WC_CALENDAR_START;
+  return WORLD_CUP_ENABLED && startKey <= WC_CALENDAR_END && endKey >= WC_CALENDAR_START;
 }
 
 function worldCupFetchBounds(startKey, endKey) {
@@ -284,9 +286,10 @@ function toNumber(value, fallback = Number.POSITIVE_INFINITY) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** 승률 표기: 야구·농구 관례대로 앞의 0 생략 (.875, 1.000) */
 function formatPct(value) {
   if (!value) return '-';
-  if (value.startsWith('.')) return `0${value}`;
+  if (value.startsWith('0.')) return value.slice(1);
   return value;
 }
 
@@ -1323,7 +1326,15 @@ async function fetchNextGame(teamId, sport = 'nba', leagueId = null) {
       return state === 'pre' || state === 'scheduled';
     });
 
-    if (!next) return { seasonEnd: true };
+    if (!next) {
+      // 홈 카드 오프시즌 판정용: 마지막으로 끝난 경기 시각 (플옵 라운드 사이 공백은 유예)
+      const lastPlayed = events
+        .filter((ev) => ev.date && ev.competitions?.[0]?.status?.type?.state === 'post')
+        .map((ev) => ev.date)
+        .sort()
+        .pop();
+      return { seasonEnd: true, lastGameDate: lastPlayed || null };
+    }
 
     const competition = next.competitions?.[0];
     const competitors = competition?.competitors || [];
@@ -1351,6 +1362,9 @@ async function fetchNextGame(teamId, sport = 'nba', leagueId = null) {
   }
 }
 
+// 위젯은 다크 전용 — 시스템이 라이트 모드여도 글래스 배경을 어둡게
+nativeTheme.themeSource = 'dark';
+
 function createWindow() {
   const raw = loadWindowStateRaw();
   const bounds = raw ? validateWindowBounds(raw) : null;
@@ -1363,6 +1377,9 @@ function createWindow() {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 16 },
     transparent: true,
+    backgroundColor: '#00000000',
+    // 글래스(vibrancy)는 렌더러가 window:set-glass로 켜고 끔 (고스트·투명도 조절 시 끔)
+    visualEffectState: 'active',
     alwaysOnTop: true,
     skipTaskbar: false,
     webPreferences: {
@@ -1675,6 +1692,8 @@ async function fetchEspnScoreboardEventsInRange(sport, startKey, endKey) {
       const events = Array.isArray(response.data?.events) ? response.data.events : [];
       if (events.length) return events;
     } catch (err) {
+      // 오프시즌 기간 조회는 ESPN이 400을 줌 — 경기 없음으로 처리 (재시도·경고 불필요)
+      if (err.response?.status === 400) return [];
       console.warn('[calendar] ESPN scoreboard 실패', { sport, url, message: err.message });
     }
   }
@@ -2316,6 +2335,13 @@ app.whenReady().then(() => {
 
   ipcMain.on('window:minimize', (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize();
+  });
+
+  // macOS 반투명 블러 배경 — 불투명도 100%·고스트 off 일 때만 (그 외엔 창 뒤가 비쳐야 함)
+  ipcMain.on('window:set-glass', (event, on) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || process.platform !== 'darwin') return;
+    win.setVibrancy(on ? 'under-window' : null);
   });
 
   ipcMain.handle('standings:fetch', async (_, sport = 'nba', options = {}) => {

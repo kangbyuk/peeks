@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('standingsAPI', {
   fetchNextGame:        (teamId, sport = 'nba', leagueId = null) =>
     ipcRenderer.invoke('schedule:fetchNextGame', teamId, sport, leagueId),
   minimizeWindow:       () => ipcRenderer.send('window:minimize'),
+  setWindowGlass:       (on) => ipcRenderer.send('window:set-glass', !!on),
   fetchAllGames:        (sport = 'nba', leagueId = null) =>
     ipcRenderer.invoke('scoreboard:fetchAll', sport, leagueId),
   // 축구 순위 (범용)

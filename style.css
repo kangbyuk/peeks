@@ -2,6 +2,26 @@
   box-sizing: border-box;
 }
 
+/* ── 디자인 토큰 (미니멀 글래스) ── */
+:root {
+  --bg-glass: rgba(18, 20, 26, 0.38);     /* macOS 블러 위에 얹는 틴트 */
+  --bg-solid: rgba(24, 27, 33, 0.94);     /* 블러 꺼졌을 때(고스트·투명도 조절) */
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --surface-active: rgba(255, 255, 255, 0.12);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --text: rgba(246, 248, 252, 0.96);
+  --text-2: rgba(235, 240, 250, 0.64);
+  --text-3: rgba(235, 240, 250, 0.40);
+  --live: #ff5a5f;
+  --win: #4fd18b;
+  --loss: #ff6b6b;
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 7px;
+}
+
 html,
 body {
   margin: 0;
@@ -9,28 +29,33 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: #ecf1f8;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Pretendard', 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
   background: transparent;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
 }
 
 .widget {
   width: 100%;
   height: 100%;
   border-radius: 12px;   /* macOS 표준 창 모서리 */
-  background: rgba(30, 34, 40, 0.93);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-solid);
+  border: 1px solid var(--hairline-strong);
   /* box-shadow: macOS 가 자동 처리하므로 제거 */
-  padding: 0 8px 8px 8px;   /* 상단은 top-bar 가 직접 처리 */
+  padding: 0 10px 10px 10px;   /* 상단은 top-bar 가 직접 처리 */
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  gap: 10px;
   overflow: hidden;
   /* 스텔스 투명도 */
   opacity: var(--base-opacity, 1);
   transition: opacity 0.28s ease;
+}
+
+/* 글래스: 창 자체가 macOS 블러(vibrancy) — 위젯은 옅은 틴트만 */
+body.glass .widget {
+  background: var(--bg-glass);
 }
 
 /* 헤더 아래 본문만 세로 스크롤 (헤더는 고정) */
@@ -39,10 +64,15 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.widget-body::-webkit-scrollbar {
+  display: none;
 }
 
 /* 고스트 모드: 호버 시 완전 불투명 복원 */
@@ -64,15 +94,14 @@ body.ghost-mode .widget:hover {
   justify-content: space-between;
   gap: 6px;
   flex-shrink: 0;
-  /* 위젯 본체와 동일 톤의 불투명 배경 (스크롤 텍스트 비침 방지) */
-  background-color: rgb(30, 34, 40);
+  /* 본문은 별도 스크롤 영역이라 헤더 배경 불필요 — 글래스가 그대로 보이게 */
+  background: transparent;
   /* top/bottom: 신호등(y:16, h:12) 중심이 top-bar 수직 중앙에 오도록
      전체 높이 ≈ 44px → padding top 14px / bottom 10px
      left 82px: 신호등 우측 끝(~66px) + PEEKS 로고 여유 16px */
   padding: 14px 8px 10px 82px;
-  margin: 0 -8px;                /* 드래그 영역을 창 좌우 끝까지 확장 */
-  /* 상단바 구분을 위한 미세한 하단 경계선 */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin: 0 -10px;               /* 드래그 영역을 창 좌우 끝까지 확장 */
+  border-bottom: 1px solid var(--hairline);
   border-radius: 12px 12px 0 0;
   -webkit-app-region: drag;
 }
@@ -100,15 +129,11 @@ h1 {
 
 /* PEEKS 브랜드 타이틀 */
 .brand-title {
-  font-size: 11px;               /* 더 미니멀한 크기 */
-  font-weight: 800;
-  letter-spacing: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 3.5px;
   text-transform: uppercase;
-  /* 배경과 확실히 구분되는 밝은 화이트 계열 그라디언트 */
-  background: linear-gradient(90deg, #e8f0ff 0%, #90beff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-2);
   user-select: none;
   flex-shrink: 0;
 }
@@ -117,7 +142,7 @@ h1 {
 .updated-time {
   font-size: 10px;
   font-variant-numeric: tabular-nums;
-  color: #a9b4c6;
+  color: var(--text-3);
   min-width: 26px;
   text-align: right;
   -webkit-app-region: no-drag;
@@ -138,22 +163,22 @@ h1 {
   width: 26px;
   height: 26px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: #c8d5e8;
+  color: var(--text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: pointer;
   transition: opacity 0.15s ease, background 0.15s ease, transform 0.12s ease;
   flex-shrink: 0;
 }
 
 .icon-btn:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.09);
+  opacity: 0.9;
+  background: var(--surface-hover);
 }
 
 .icon-btn:active {
@@ -171,13 +196,14 @@ h1 {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
+  stroke-width: 1.6;
 }
 
 /* 현재 활성 탭 아이콘 강조 */
 .icon-btn.active-view {
   opacity: 1;
-  color: #6aa3ff;
-  background: rgba(77, 140, 255, 0.12);
+  color: var(--text);
+  background: var(--surface-active);
 }
 
 .refresh-btn.spinning {
@@ -200,8 +226,9 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 0;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
   padding: 0;
   min-height: 0;
   overflow: hidden;
@@ -211,7 +238,7 @@ h1 {
 .settings-tabs {
   display: flex;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .settings-tab {
@@ -221,33 +248,25 @@ h1 {
   min-height: 32px;
   padding: 6px 4px;
   border: none;
+  border-bottom: 2px solid transparent;
   background: transparent;
-  color: #6b7f96;
-  font-size: 8.5px;
-  font-weight: 600;
+  color: var(--text-3);
+  font-size: 9.5px;
+  font-weight: 500;
   line-height: 1.25;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
   -webkit-app-region: no-drag;
 }
 
-.settings-tab:first-child {
-  border-radius: 8px 0 0 0;
-}
-
-.settings-tab:last-child {
-  border-radius: 0 8px 0 0;
-}
-
 .settings-tab.active {
-  color: #c8d8f0;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 2px solid #4d8cff;
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--text);
 }
 
 .settings-tab:hover:not(.active) {
-  color: #a0b4cc;
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-2);
 }
 
 /* 탭 패널 */
@@ -397,8 +416,8 @@ h1 {
   flex-shrink: 0;
   padding: 10px 0 8px;
   margin-top: 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: rgb(30, 34, 40);
+  border-top: 1px solid var(--hairline);
+  background: transparent;
   position: relative;
   z-index: 3;
 }
@@ -450,14 +469,14 @@ h1 {
 .team-checkbox-item input[type='checkbox'] {
   width: 11px;
   height: 11px;
-  accent-color: #4d8cff;
+  accent-color: var(--win);
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .team-checkbox-item.checked {
   color: #ffffff;
-  background: rgba(77, 140, 255, 0.14);
+  background: var(--surface-hover);
 }
 
 .team-checkbox-conf {
@@ -479,15 +498,15 @@ h1 {
 
 .stealth-label {
   font-size: 10px;
-  font-weight: 600;
-  color: #c8d5e8;
+  font-weight: 500;
+  color: var(--text);
   flex-shrink: 0;
   min-width: 64px;
 }
 
 .stealth-desc {
   font-size: 9px;
-  color: #6b7f96;
+  color: var(--text-3);
   flex: 1;
   min-width: 0;
   line-height: 1.25;
@@ -497,7 +516,7 @@ h1 {
 
 .stealth-val {
   font-size: 9px;
-  color: #7a9ccc;
+  color: var(--text-2);
   min-width: 30px;
   text-align: right;
   flex-shrink: 0;
@@ -510,7 +529,7 @@ h1 {
   height: 3px;
   -webkit-appearance: none;
   appearance: none;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-active);
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -521,14 +540,10 @@ h1 {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #6aa3ff;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   cursor: pointer;
-  transition: background 0.15s;
-}
-
-.opacity-slider::-webkit-slider-thumb:hover {
-  background: #90c0ff;
 }
 
 /* 토글 스위치 */
@@ -546,10 +561,10 @@ h1 {
 .toggle-thumb {
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-active);
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: background 0.2s, border-color 0.2s;
+  border: none;
+  transition: background 0.2s;
 }
 
 .toggle-thumb::after {
@@ -558,51 +573,52 @@ h1 {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #7a8fa8;
-  top: 2px;
-  left: 2px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  top: 3px;
+  left: 3px;
   transition: transform 0.2s, background 0.2s;
 }
 
 .toggle-switch input:checked + .toggle-thumb {
-  background: rgba(77, 140, 255, 0.35);
-  border-color: rgba(77, 140, 255, 0.5);
+  background: var(--win);
 }
 
 .toggle-switch input:checked + .toggle-thumb::after {
   transform: translateX(14px);
-  background: #6aa3ff;
 }
 
 
 /* 종목 탭 */
 .sport-tabs {
   display: flex;
-  gap: 4px;
+  gap: 14px;
   flex-shrink: 0;
+  padding: 0 2px;
 }
 
 .sport-tab {
-  flex: 1;
   height: 22px;
-  border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: #9eb0ca;
-  font-size: 10px;
+  padding: 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s, border-color 0.15s;
 }
 
 .sport-tab.active {
-  background: rgba(77, 140, 255, 0.25);
-  color: #e8edf6;
-  border-color: rgba(77, 140, 255, 0.4);
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--text);
 }
 
 .sport-tab:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.09);
-  color: #cdd8ea;
+  color: var(--text-2);
 }
 
 .sport-list.hidden {
@@ -636,7 +652,7 @@ h1 {
   outline: none;
   color: #e8edf6;
   font-size: 10px;
-  caret-color: #4d8cff;
+  caret-color: var(--text);
   -webkit-app-region: no-drag;
 }
 
@@ -672,28 +688,25 @@ h1 {
 #save-favorite-btn,
 .btn-apply-favorites {
   width: 100%;
-  height: 34px;
-  border-radius: 8px;
-  border: 1px solid rgba(77, 140, 255, 0.45);
+  height: 32px;
+  border-radius: 999px;
+  border: none;
   margin: 0;
   flex-shrink: 0;
-  background: linear-gradient(180deg, rgba(77, 140, 255, 0.35) 0%, rgba(77, 140, 255, 0.2) 100%);
-  color: #e8f0ff;
+  background: rgba(246, 248, 252, 0.92);
+  color: #14161b;
+  font-family: inherit;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
+  font-weight: 600;
   padding: 0 12px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+  transition: background 0.15s, transform 0.1s;
   -webkit-app-region: no-drag;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 #save-favorite-btn:hover,
 .btn-apply-favorites:hover {
-  background: linear-gradient(180deg, rgba(90, 150, 255, 0.5) 0%, rgba(77, 140, 255, 0.35) 100%);
-  border-color: rgba(120, 170, 255, 0.65);
-  color: #ffffff;
+  background: #ffffff;
 }
 
 #save-favorite-btn:active,
@@ -723,6 +736,30 @@ h1 {
 
 .my-teams-list.is-reordering {
   touch-action: none;
+}
+
+/* ── 오프시즌 팀: 숨김 토글 + 펼쳤을 때 흐리게 ── */
+.team-card.team-card--offseason {
+  opacity: 0.5;
+}
+
+.offseason-toggle {
+  align-self: center;
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 10px;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.offseason-toggle-action {
+  text-decoration: underline;
+}
+
+.offseason-toggle:hover {
+  color: var(--text-2);
 }
 
 /* ── All Games 섹션 (본문 높이만큼 이어짐, 스크롤 없음) ── */
@@ -760,10 +797,11 @@ h1 {
 }
 
 .all-games-title {
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: #4a5a6e;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 
 .all-games-season-badge {
@@ -783,7 +821,7 @@ h1 {
 }
 
 .toggle-chevron {
-  color: #4a5a6e;
+  color: var(--text-3);
   transition: transform 0.2s ease;
   flex-shrink: 0;
 }
@@ -801,10 +839,10 @@ h1 {
 }
 
 .games-filter-btn {
-  width: 20px;
-  height: 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 22px;
+  height: 18px;
+  border-radius: 999px;
+  border: none;
   background: transparent;
   font-size: 10px;
   line-height: 1;
@@ -816,8 +854,21 @@ h1 {
 
 .games-filter-btn.active {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: var(--surface-active);
+}
+
+/* 드래그로 순서 변경 */
+.games-filter-btn {
+  cursor: grab;
+  touch-action: none;
+  transition: opacity 0.15s, background 0.15s, transform 0.12s;
+}
+
+.games-filter-btn.dragging {
+  opacity: 1;
+  cursor: grabbing;
+  transform: scale(1.15);
+  background: var(--surface-active);
 }
 
 .games-filter-btn:hover:not(.active) {
@@ -838,20 +889,20 @@ h1 {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 4px;
-  border-radius: 4px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
   transition: background 0.12s;
 }
 
 .game-row:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface);
 }
 
 /* 상태 표시 */
 .gr-status {
-  font-size: 8px;
-  color: #4e6070;
-  min-width: 38px;
+  font-size: 8.5px;
+  color: var(--text-3);
+  min-width: 52px;
   flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -860,12 +911,12 @@ h1 {
 }
 
 .gr-status.live {
-  color: #e05555;
-  font-weight: 700;
+  color: var(--live);
+  font-weight: 600;
 }
 
 .gr-status.final {
-  color: #4e6070;
+  color: var(--text-3);
 }
 
 /* ALL GAMES: 팀 로고 + 이름 (즐겨찾기 강조 없음) */
@@ -890,9 +941,9 @@ h1 {
 }
 
 .gr-team-name {
-  font-size: 9px;
+  font-size: 9.5px;
   line-height: 1.2;
-  color: #b8c5d6;
+  color: var(--text-2);
   /* 슬롯(.gr-team-slot) 폭까지 쓰고, 창이 좁을 때만 말줄임 */
   flex: 1 1 auto;
   min-width: 0;
@@ -927,8 +978,8 @@ h1 {
 
 .gr-score {
   font-size: 11px;
-  font-weight: 700;
-  color: #d0dced;
+  font-weight: 600;
+  color: var(--text);
   min-width: 18px;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -936,35 +987,34 @@ h1 {
 
 .gr-abbr {
   font-size: 9px;
-  font-weight: 600;
-  color: #8a9bb4;
+  font-weight: 500;
+  color: var(--text-2);
   white-space: nowrap;
 }
 
 .gr-vs {
   font-size: 9px;
-  color: #3a4e60;
+  color: var(--text-3);
   flex-shrink: 0;
 }
 
 /* 빈 상태 / 로딩 */
 .gr-empty {
   font-size: 9px;
-  color: #4a5a6e;
+  color: var(--text-3);
   text-align: center;
-  padding: 8px 0;
+  padding: 10px 0;
 }
 
 /* ── 팀 카드 ── */
 .team-card {
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-left: 3px solid var(--accent, #4d8cff);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   height: auto;
   position: relative;
   cursor: grab;
@@ -978,7 +1028,7 @@ h1 {
   z-index: 30;
   opacity: 0.72;
   transform: scale(1.02);
-  box-shadow: 0 14px 38px rgba(60, 130, 255, 0.22);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.35);
   cursor: grabbing;
 }
 
@@ -992,14 +1042,14 @@ h1 {
 .card-header-left {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
   min-width: 0;
   flex: 1;
 }
 
 .card-team-logo {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   object-fit: contain;
   flex-shrink: 0;
   -webkit-user-drag: none;
@@ -1007,9 +1057,9 @@ h1 {
 }
 
 .card-team-name {
-  font-size: 12px;
-  font-weight: 700;
-  color: #e8edf6;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1039,14 +1089,15 @@ h1 {
 }
 
 .card-rank {
-  font-size: 9px;
-  font-weight: 600;
-  color: #8a9ab4;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--text-2);
 }
 
 .card-record {
-  font-size: 9px;
-  color: #7a8fa8;
+  font-size: 9.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── 카드 본문: 오늘 경기 ── */
@@ -1069,19 +1120,19 @@ h1 {
 }
 
 .card-no-game {
-  font-size: 11px;
-  color: #6b7f96;
+  font-size: 10.5px;
+  color: var(--text-3);
 }
 
 .card-pre-detail {
   font-size: 10px;
-  color: #9eb0ca;
+  color: var(--text-2);
 }
 
 /* ── 경기장 표시 ── */
 .card-venue {
   font-size: 9px;
-  color: #4a5e76;
+  color: var(--text-3);
   margin-top: 3px;
   letter-spacing: 0.01em;
 }
@@ -1110,7 +1161,7 @@ h1 {
 
 .card-period {
   font-size: 10px;
-  color: #9eb0ca;
+  color: var(--text-2);
 }
 
 .card-score-row {
@@ -1121,13 +1172,13 @@ h1 {
 
 .card-abbr {
   font-size: 10px;
-  font-weight: 700;
-  color: #dce6f8;
+  font-weight: 600;
+  color: var(--text);
   min-width: 26px;
 }
 
 .card-abbr.opp {
-  color: #9eb0ca;
+  color: var(--text-2);
   text-align: right;
 }
 
@@ -1143,17 +1194,18 @@ h1 {
     ),
     22px
   );
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: 1px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
 }
 
 .card-final-label {
   font-size: 9px;
-  font-weight: 700;
-  color: #7a8fa8;
+  font-weight: 600;
+  color: var(--text-3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -1164,23 +1216,23 @@ h1 {
   margin-left: 4px;
 }
 
-.card-result.win { color: #3ecf7a; }
-.card-result.loss { color: #e05555; }
+.card-result.win { color: var(--win); }
+.card-result.loss { color: var(--loss); }
 
 /* ── 카드 푸터: 다음 경기 ── */
 .card-footer {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
   min-width: 0;
 }
 
 .card-next-label {
   font-size: 8px;
-  font-weight: 700;
-  color: #6b7f96;
+  font-weight: 600;
+  color: var(--text-3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
@@ -1195,9 +1247,9 @@ h1 {
 }
 
 .card-next-prefix {
-  font-size: 7.5px;
-  font-weight: 700;
-  color: #6b7f96;
+  font-size: 8px;
+  font-weight: 500;
+  color: var(--text-3);
   flex-shrink: 0;
   line-height: 1;
   text-transform: lowercase;
@@ -1211,9 +1263,9 @@ h1 {
 }
 
 .card-next-opponent {
-  font-size: 9px;
-  font-weight: 600;
-  color: #c8d8ea;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--text-2);
   flex: 1;
   min-width: 0;
   white-space: nowrap;
@@ -1223,14 +1275,15 @@ h1 {
 
 .card-next-date {
   font-size: 9px;
-  color: #7a8fa8;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 /* ── LIVE 점 깜빡임 ── */
 .live-dot {
-  color: #ff4d4f;
+  color: var(--live);
   animation: livePulse 1s infinite;
   font-size: 10px;
 }
@@ -1755,32 +1808,34 @@ h1 {
 
 .standings-sport-tabs {
   display: flex;
-  gap: 4px;
+  gap: 14px;
   flex-shrink: 0;
+  padding: 0 2px;
 }
 
 .standings-tab {
-  flex: 1;
-  height: 20px;
-  border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: #9eb0ca;
-  font-size: 10px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s, border-color 0.15s;
   -webkit-app-region: no-drag;
 }
 
 .standings-tab.active {
-  background: rgba(77, 140, 255, 0.22);
-  color: #e8edf6;
-  border-color: rgba(77, 140, 255, 0.35);
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--text);
 }
 
 .standings-tab:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.08);
-  color: #cdd8ea;
+  color: var(--text-2);
 }
 
 /* ── 축구 리그 서브탭 (공용) ── */
@@ -1816,14 +1871,16 @@ h1 {
 .soccer-setup-tab,
 .baseball-games-tab,
 .baseball-setup-tab {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
-  height: 18px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: rgba(255, 255, 255, 0.04);
-  color: #8a9db8;
-  font-size: 9px;
+  padding: 0 10px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 9.5px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -1841,9 +1898,8 @@ h1 {
 .soccer-setup-tab.active,
 .baseball-games-tab.active,
 .baseball-setup-tab.active {
-  background: rgba(40, 180, 100, 0.22);
-  color: #d0f0e0;
-  border-color: rgba(40, 180, 100, 0.35);
+  background: var(--surface-active);
+  color: var(--text);
 }
 .wc-std-tab:hover:not(.active),
 .nba-std-tab:hover:not(.active),
@@ -1852,8 +1908,8 @@ h1 {
 .soccer-setup-tab:hover:not(.active),
 .baseball-games-tab:hover:not(.active),
 .baseball-setup-tab:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.08);
-  color: #b8cde4;
+  background: var(--surface);
+  color: var(--text-2);
 }
 
 .tables {
@@ -2008,9 +2064,10 @@ h1 {
 }
 
 .panel {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  padding: 5px 6px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  padding: 8px 8px 6px;
   min-width: 0;
   overflow-y: auto;
   display: flex;
@@ -2018,12 +2075,12 @@ h1 {
 }
 
 h2 {
-  margin: 0 0 5px;
+  margin: 0 0 4px;
+  padding: 0 2px 6px;
   font-size: 10px;
-  color: #9eb0ca;
-  font-weight: 700;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-2);
+  font-weight: 600;
+  border-bottom: 1px solid var(--hairline);
 }
 
 /* table-layout: fixed → 각 컬럼 너비 예측 가능, 팀명 말줄임 보장 */
@@ -2035,8 +2092,8 @@ h2 {
 
 .rank-table th,
 .rank-table td {
-  padding: 2px 2px;
-  font-size: 9px;
+  padding: 3px 2px;
+  font-size: 9.5px;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
@@ -2044,19 +2101,21 @@ h2 {
 }
 
 .rank-table th {
-  color: #8e9db4;
-  font-weight: 600;
+  color: var(--text-3);
+  font-weight: 500;
+  font-size: 8.5px;
 }
 
 .rank-table td {
-  color: #e8edf6;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 /* 순위 컬럼: 고정 너비 */
 .col-rank {
-  width: 16px;
+  width: 18px;
   text-align: center;
-  color: #7a8fa8;
+  color: var(--text-3);
 }
 
 /* 팀명: 나머지 공간 전부 차지, 말줄임 적용 */
@@ -2091,25 +2150,19 @@ h2 {
   width: 24px;
   min-width: 24px;
   text-align: right;
-  color: #9eb0ca;
+  color: var(--text-2);
 }
 
 /* ── 플레이오프 구간 강조 ── */
 
 /* NBA: 1-6위 PO 직행 */
-.row-po {
-  background: rgba(72, 128, 230, 0.07);
-}
 .row-po td:first-child {
-  box-shadow: inset 3px 0 0 rgba(72, 128, 230, 0.65);
+  box-shadow: inset 2px 0 0 rgba(138, 184, 255, 0.7);
 }
 
 /* NBA: 7-10위 플레이인 */
-.row-pi {
-  background: rgba(220, 145, 50, 0.07);
-}
 .row-pi td:first-child {
-  box-shadow: inset 3px 0 0 rgba(220, 145, 50, 0.65);
+  box-shadow: inset 2px 0 0 rgba(242, 178, 90, 0.7);
 }
 
 /* 확정 마크 */
@@ -2149,7 +2202,21 @@ h2 {
 
 
 .team {
-  font-weight: 600;
+  font-weight: 500;
+}
+
+/* 즐겨찾기 팀 행 */
+.rank-table tr.row-fav td {
+  background: var(--surface-active);
+}
+.rank-table tr.row-fav .team {
+  font-weight: 700;
+}
+.rank-table tr.row-fav td:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.rank-table tr.row-fav td:last-child {
+  border-radius: 0 6px 6px 0;
 }
 
 .hidden {
@@ -2328,32 +2395,30 @@ h2 {
 .empty-state-text {
   margin: 0;
   font-size: 13px;
-  font-weight: 400;
-  color: rgba(160, 185, 215, 0.65);
-  letter-spacing: 0.15px;
+  font-weight: 500;
+  color: var(--text-2);
 }
 
 .empty-state-btn {
   margin-top: 10px;
-  background: transparent;
-  border: 1px solid rgba(90, 130, 200, 0.35);
-  color: rgba(130, 170, 220, 0.8);
+  background: var(--surface-active);
+  border: none;
+  color: var(--text);
   font-size: 11px;
+  font-weight: 500;
   font-family: inherit;
-  padding: 6px 14px;
-  border-radius: 7px;
+  padding: 7px 16px;
+  border-radius: 999px;
   cursor: pointer;
   letter-spacing: 0.25px;
   transition: border-color 0.2s, color 0.2s, background 0.2s;
   -webkit-app-region: no-drag;
 }
 .empty-state-btn:hover {
-  border-color: rgba(100, 160, 255, 0.55);
-  color: rgba(160, 200, 255, 0.95);
-  background: rgba(60, 100, 200, 0.1);
+  background: rgba(255, 255, 255, 0.18);
 }
 .empty-state-btn:active {
-  background: rgba(60, 100, 200, 0.18);
+  transform: scale(0.97);
 }
 
 /* ── 팀 관리 섹션 하이라이트 (딥링크 진입 시) ── */
@@ -2653,8 +2718,8 @@ body.coder-mode .empty-state-btn {
   flex-shrink: 0;
   padding: 4px 6px;
   border-radius: 6px;
-  background: rgba(77, 140, 255, 0.1);
-  border: 1px solid rgba(77, 140, 255, 0.22);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
 }
 
 .cal-other-sports-hint {
@@ -2696,12 +2761,51 @@ body.coder-mode .empty-state-btn {
 }
 
 .cal-section-head--day {
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
+  padding: 2px 2px 0;
 }
 
 .cal-section-head--day .cal-section-title {
+  flex: 0 1 auto;
   font-size: 10px;
-  color: #b8c5d6;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* 주간 보기: 오늘 강조 · 경기 없는 날은 한 줄로 흐리게 */
+.cal-section--day.is-today .cal-section-title {
+  color: var(--text);
+}
+
+.cal-day-today {
+  font-size: 8px;
+  font-weight: 600;
+  color: #14161b;
+  background: rgba(246, 248, 252, 0.92);
+  border-radius: 999px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.cal-day-none {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.cal-section--day.is-empty .cal-section-title {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.cal-section--day.is-today.is-empty .cal-section-title {
+  color: var(--text);
+}
+
+.cal-match-league {
+  font-size: 10px;
+  flex-shrink: 0;
 }
 
 .team-card--clickable {
@@ -2730,18 +2834,18 @@ body.coder-mode .empty-state-btn {
   padding: 3px 8px;
   font-size: 9px;
   font-weight: 600;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.25);
-  color: #9aadc4;
+  border-radius: 999px;
+  border: none;
+  background: var(--surface-active);
+  color: var(--text);
+  font-family: inherit;
   cursor: pointer;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
 
 .cal-today-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #d0dced;
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .cal-month-nav {
@@ -2756,10 +2860,10 @@ body.coder-mode .empty-state-btn {
 .cal-nav-btn {
   width: 22px;
   height: 22px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.25);
-  color: #b8c5d6;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -2768,111 +2872,16 @@ body.coder-mode .empty-state-btn {
 }
 
 .cal-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-hover);
 }
 
 .cal-month-label {
   font-size: 11px;
-  font-weight: 700;
-  color: #e0e8f4;
+  font-weight: 600;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
   min-width: 56px;
   text-align: center;
-}
-
-.cal-date-strip {
-  display: flex;
-  gap: 2px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  flex-shrink: 0;
-  padding: 2px 0 4px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.cal-date-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.cal-date-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  min-width: 32px;
-  padding: 4px 2px 5px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #7a8fa8;
-  cursor: pointer;
-  flex-shrink: 0;
-  position: relative;
-  -webkit-app-region: no-drag;
-}
-
-.cal-date-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.cal-date-btn .cal-date-wd {
-  font-size: 8px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.cal-date-btn .cal-date-num {
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-
-.cal-date-btn .cal-date-today-tag {
-  font-size: 7px;
-  font-weight: 700;
-  color: #5b9dff;
-  line-height: 1;
-  min-height: 8px;
-}
-
-.cal-date-btn.is-today .cal-date-wd,
-.cal-date-btn.is-today .cal-date-num {
-  color: #5b9dff;
-}
-
-.cal-date-btn.is-selected {
-  background: rgba(77, 140, 255, 0.14);
-}
-
-.cal-date-btn.is-selected::after {
-  content: '';
-  position: absolute;
-  bottom: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 14px;
-  height: 2px;
-  border-radius: 1px;
-  background: #5b9dff;
-}
-
-.cal-date-btn.has-game .cal-date-num {
-  position: relative;
-}
-
-.cal-date-btn.has-game:not(.is-selected) .cal-date-num::after {
-  content: '';
-  position: absolute;
-  bottom: -3px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: rgba(77, 140, 255, 0.55);
 }
 
 .calendar-events-list {
@@ -2892,10 +2901,10 @@ body.coder-mode .empty-state-btn {
 .cal-section-head {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   padding: 4px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
 }
 
 .cal-section-emoji {
@@ -2905,8 +2914,8 @@ body.coder-mode .empty-state-btn {
 
 .cal-section-title {
   font-size: 9px;
-  font-weight: 700;
-  color: #9aadc4;
+  font-weight: 600;
+  color: var(--text-2);
   flex: 1;
   min-width: 0;
   white-space: nowrap;
@@ -2924,10 +2933,10 @@ body.coder-mode .empty-state-btn {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 6px 6px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
 }
 
 .cal-match-meta {
@@ -2939,15 +2948,15 @@ body.coder-mode .empty-state-btn {
 
 .cal-match-time {
   font-size: 10px;
-  font-weight: 700;
-  color: #d8e4f8;
+  font-weight: 600;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 
 .cal-match-venue {
-  font-size: 8px;
-  color: #6a7a8e;
+  font-size: 8.5px;
+  color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2965,6 +2974,28 @@ body.coder-mode .empty-state-btn {
   display: flex;
   align-items: center;
   gap: 3px;
+  min-width: 0;
+}
+
+/* 날짜별 목록(주간·국가 일정): 한 경기 = 한 줄 (시간 | 대진) — 7일을 한 화면에 */
+.cal-section--day .cal-match {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+}
+
+.cal-section--day .cal-match-meta {
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.cal-section--day .cal-match-venue {
+  display: none;
+}
+
+.cal-section--day .cal-match-body {
+  flex: 1;
   min-width: 0;
 }
 
@@ -3052,12 +3083,12 @@ body.coder-mode .empty-state-btn {
 }
 
 .cal-match-status.is-pre {
-  color: #5b9dff;
+  color: var(--text-2);
 }
 
 .calendar-btn.active-view {
   opacity: 1;
-  background: rgba(77, 140, 255, 0.15);
+  background: var(--surface-active);
 }
 
 .wc-bracket .ucl-nav {
@@ -3069,5 +3100,5 @@ body.coder-mode .empty-state-btn {
 }
 
 .standings-tab--wc.active {
-  box-shadow: inset 0 -2px 0 rgba(255, 215, 0, 0.55);
+  border-bottom-color: #f2c94c;
 }
